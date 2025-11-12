@@ -1,0 +1,73 @@
+{
+  "pages": [
+    {
+      "id": "evening_praise",
+      "title": "Evening Praise",
+      "sections": [
+        {
+          "id": "prelude",
+          "title": "Prelude",
+          "note": "Reflective intro",
+          "audio": {
+            "url": "assets/audio/prelude.mp3",
+            "duration": 94
+          },
+          "lyrics": [
+            {
+              "order": 1,
+              "text": "When the sun retreats behind the hill"
+            },
+            {
+              "order": 2,
+              "text": "We gather close, our hearts made still"
+            }
+          ]
+        },
+        {
+          "id": "refrain",
+          "title": "Refrain",
+          "note": "Congregation joins",
+          "audio": {
+            "url": "assets/audio/refrain.mp3",
+            "duration": 128
+          },
+          "lyrics": [
+            {
+              "order": 1,
+              "text": "Lift your voice and let it soar"
+            },
+            {
+              "order": 2,
+              "text": "Echo love forevermore"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "morning_grace",
+      "title": "Morning Grace",
+      "sections": [
+        {
+          "id": "call_to_worship",
+          "title": "Call to Worship",
+          "note": "Bright and uplifting",
+          "audio": {
+            "url": "assets/audio/call_to_worship.mp3",
+            "duration": 102
+          },
+          "lyrics": [
+            {
+              "order": 1,
+              "text": "Wake with light, your spirit raise"
+            },
+            {
+              "order": 2,
+              "text": "Sing with joy the morning praise"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
