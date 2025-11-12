@@ -1,0 +1,16 @@
+# Flutter & Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+# iOS
+ios/Flutter/Generated.xcconfig
+ios/Runner/GeneratedPluginRegistrant.*
+ios/Runner.xcodeproj/
+ios/Runner.xcworkspace/
+ios/Pods/
+# Android
+gradle/
+app/android/.gradle/
+app/android/local.properties
