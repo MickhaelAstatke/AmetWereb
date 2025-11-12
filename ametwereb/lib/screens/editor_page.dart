@@ -57,7 +57,7 @@ class _EditorPageState extends State<EditorPage> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<LyricPage>(
-                        value: selectedPage,
+                        initialValue: selectedPage,
                         decoration: const InputDecoration(
                           labelText: 'Select a page',
                           border: OutlineInputBorder(),
@@ -70,7 +70,7 @@ class _EditorPageState extends State<EditorPage> {
                               ),
                             )
                             .toList(),
-                        onChanged: (value) {
+                        onChanged: (LyricPage? value) {
                           if (value != null) {
                             _loadPage(value);
                           }
@@ -144,6 +144,7 @@ class _EditorPageState extends State<EditorPage> {
                                   setState(() {
                                     _sections = _upsertSectionLocally(section);
                                   });
+                                  if (!mounted) return;
                                   await _commitPage(context);
                                 }
                               },
@@ -195,6 +196,7 @@ class _EditorPageState extends State<EditorPage> {
                                             _sections =
                                                 _upsertSectionLocally(updated);
                                           });
+                                          if (!mounted) return;
                                           await _commitPage(context);
                                         }
                                       },
@@ -232,6 +234,7 @@ class _EditorPageState extends State<EditorPage> {
                                                 .where((s) => s.id != section.id)
                                                 .toList();
                                           });
+                                          if (!mounted) return;
                                           await _commitPage(context);
                                         }
                                       },
@@ -320,6 +323,7 @@ class _EditorPageState extends State<EditorPage> {
         _isExistingPage = true;
       });
     }
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Library updated')),
     );

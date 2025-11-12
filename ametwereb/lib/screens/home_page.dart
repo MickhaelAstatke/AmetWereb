@@ -1,3 +1,4 @@
+import 'package:ametwereb/models/lyric_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
@@ -52,8 +53,8 @@ class HomePage extends HookWidget {
                           ),
                           const SizedBox(width: 16),
                           Expanded(
-                            child: DropdownButtonFormField(
-                              value: provider.selectedPage,
+                            child: DropdownButtonFormField<LyricPage>(
+                              initialValue: provider.selectedPage,
                               decoration: const InputDecoration(
                                 border: OutlineInputBorder(),
                               ),
@@ -67,7 +68,7 @@ class HomePage extends HookWidget {
                                   .toList(),
                               onChanged: provider.pages.isEmpty
                                   ? null
-                                  : (value) {
+                                  : (LyricPage? value) {
                                       if (value != null) {
                                         provider.selectPage(value);
                                       }
@@ -143,11 +144,13 @@ class _LyricSectionTile extends StatelessWidget {
                 : null,
             color: isActive
                 ? null
-                : theme.colorScheme.surfaceVariant.withOpacity(0.4),
+                : theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.4),
             boxShadow: [
               if (isActive)
                 BoxShadow(
-                  color: theme.colorScheme.primary.withOpacity(0.2),
+                  color:
+                      theme.colorScheme.primary.withValues(alpha: 0.2),
                   blurRadius: 12,
                   offset: const Offset(0, 6),
                 ),
@@ -186,7 +189,7 @@ class _LyricSectionTile extends StatelessWidget {
                             '${section.audio.duration ~/ 60}:${(section.audio.duration % 60).toString().padLeft(2, '0')} mins',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.textTheme.bodySmall?.color
-                                  ?.withOpacity(0.7),
+                                  ?.withValues(alpha: 0.7),
                             ),
                           ),
                         ],
