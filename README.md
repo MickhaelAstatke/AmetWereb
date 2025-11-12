@@ -5,19 +5,19 @@ A cross-platform Flutter experience for browsing, playing, and editing worship l
 ## Project structure
 
 ```
-android/                     # Android launch assets and Gradle config
-ios/                         # iOS launch assets and storyboard tweaks
-assets/
-└── data/lyrics.json         # Seed lyric, section, and audio metadata
-lib/
-├── main.dart                # App entry point and routing
-├── models/                  # Immutable data models
-├── providers/               # Application state & audio coordination
-├── screens/                 # Home, player, and editor flows
-└── widgets/                 # Reusable UI components
-docs/
-└── app-overview.md          # Additional notes about the Flutter app layout
-pubspec.yaml                 # Flutter dependencies and asset registration
+app/
+├── README.md                 # Directory-level overview and run instructions
+├── android/                  # Android launch assets and Gradle config
+├── ios/                      # iOS launch assets and storyboard tweaks
+├── assets/
+│   └── data/lyrics.json      # Seed lyric, section, and audio metadata
+├── lib/
+│   ├── main.dart             # App entry point and routing
+│   ├── models/               # Immutable data models
+│   ├── providers/            # Application state & audio coordination
+│   ├── screens/              # Home, player, and editor flows
+│   └── widgets/              # Reusable UI components
+└── pubspec.yaml
 ```
 
 ## Getting started
@@ -27,6 +27,7 @@ pubspec.yaml                 # Flutter dependencies and asset registration
 1. [Install Flutter](https://docs.flutter.dev/get-started/install) and ensure the `flutter` command is on your `PATH`.
 2. From the repository root, fetch dependencies:
    ```bash
+   cd app
    flutter pub get
    ```
 3. (Optional) regenerate native platforms to ensure tooling files match your local toolchain:
@@ -36,7 +37,7 @@ pubspec.yaml                 # Flutter dependencies and asset registration
    The command keeps existing Dart sources, assets, and configuration files while rebuilding any missing Xcode or Gradle wiring.
 4. Run the application:
    ```bash
-   flutter run -t lib/main.dart
+   flutter run
    ```
 
 ## Features
@@ -59,4 +60,4 @@ With Flutter installed, run the standard test suite:
 flutter test
 ```
 
-Add additional widget or integration tests inside `test/` as new features land.
+Add additional widget or integration tests inside `app/test/` as new features land.
