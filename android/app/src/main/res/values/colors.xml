@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="lyric_primary">#5C53E9</color>
+    <color name="lyric_on_primary">#FFFFFF</color>
+    <color name="lyric_background">#121212</color>
+    <color name="lyric_surface">#1E1E1E</color>
+</resources>

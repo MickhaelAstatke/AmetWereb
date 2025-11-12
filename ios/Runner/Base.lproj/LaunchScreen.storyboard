@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="18122" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES">
+    <scenes>
+        <scene sceneID="scene1">
+            <objects>
+                <viewController id="LaunchViewController">
+                    <view key="view" contentMode="scaleToFill" id="LaunchView">
+                        <rect key="frame" x="0" y="0" width="414" height="896"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                        <viewLayoutGuide key="safeArea" id="safeArea"/>
+                        <subviews>
+                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="logoContainer">
+                                <rect key="frame" x="132" y="308" width="150" height="150"/>
+                                <color key="backgroundColor" red="0.36" green="0.32" blue="0.91" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                <layer key="layer" cornerRadius="24"/>
+                                <constraints>
+                                    <constraint firstAttribute="height" constant="150" id="height"/>
+                                    <constraint firstAttribute="width" constant="150" id="width"/>
+                                </constraints>
+                            </view>
+                        </subviews>
+                        <color key="backgroundColor" red="0.07" green="0.07" blue="0.07" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <constraints>
+                            <constraint firstItem="logoContainer" firstAttribute="centerX" secondItem="safeArea" secondAttribute="centerX" id="centerX"/>
+                            <constraint firstItem="logoContainer" firstAttribute="centerY" secondItem="safeArea" secondAttribute="centerY" id="centerY"/>
+                        </constraints>
+                    </view>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="firstResponder" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+        </scene>
+    </scenes>
+</document>
