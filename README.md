@@ -6,6 +6,7 @@ A cross-platform Flutter experience for browsing, playing, and editing worship l
 
 ```
 app/
+├── README.md                 # Directory-level overview and run instructions
 ├── android/                  # Android launch assets and Gradle config
 ├── ios/                      # iOS launch assets and storyboard tweaks
 ├── assets/
