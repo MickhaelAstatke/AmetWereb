@@ -6,6 +6,7 @@ import 'screens/editor_page.dart';
 import 'screens/home_page.dart';
 import 'screens/player_page.dart';
 import 'services/lyrics_repository.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   runApp(const LyricsApp());
@@ -24,19 +25,10 @@ class LyricsApp extends StatelessWidget {
       ],
       child: MaterialApp(
         title: 'Lyric Companion',
-        theme: ThemeData(
-          brightness: Brightness.light,
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-          useMaterial3: true,
-        ),
-        darkTheme: ThemeData(
-          brightness: Brightness.dark,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.deepPurple,
-            brightness: Brightness.dark,
-          ),
-          useMaterial3: true,
-        ),
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: ThemeMode.system,
         routes: {
           HomePage.routeName: (_) => const HomePage(),
           PlayerPage.routeName: (_) => const PlayerPage(),
