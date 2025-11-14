@@ -33,6 +33,7 @@ class _EditorPageState extends State<EditorPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Consumer<LyricsProvider>(
       builder: (context, provider, _) {
         LyricPage? selectedPage;
@@ -46,203 +47,513 @@ class _EditorPageState extends State<EditorPage> {
         }
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Manage Lyric Library'),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        theme.colorScheme.primary,
+                        theme.colorScheme.tertiary,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.edit_note,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text('Manage Library'),
+              ],
+            ),
           ),
           body: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<LyricPage>(
-                        value: selectedPage,
-                        decoration: const InputDecoration(
-                          labelText: 'Select a page',
-                          border: OutlineInputBorder(),
+                // Page selector header
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        theme.colorScheme.primaryContainer.withOpacity(0.5),
+                        theme.colorScheme.secondaryContainer.withOpacity(0.5),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: theme.colorScheme.outlineVariant.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<LyricPage>(
+                          value: selectedPage,
+                          decoration: InputDecoration(
+                            labelText: 'Select a page',
+                            filled: true,
+                            fillColor: theme.colorScheme.surface,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide.none,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.library_music,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                          dropdownColor: theme.colorScheme.surface,
+                          items: provider.pages
+                              .map(
+                                (page) => DropdownMenuItem(
+                                  value: page,
+                                  child: Text(page.title),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              _loadPage(value);
+                            }
+                          },
                         ),
-                        items: provider.pages
-                            .map(
-                              (page) => DropdownMenuItem(
-                                value: page,
-                                child: Text(page.title),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            _loadPage(value);
-                          }
-                        },
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.add),
-                      label: const Text('New Page'),
-                      onPressed: () => _loadPage(null),
-                    ),
-                  ],
+                      const SizedBox(width: 16),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              theme.colorScheme.primary,
+                              theme.colorScheme.tertiary,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: theme.colorScheme.primary.withOpacity(0.3),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.add),
+                          label: const Text('New'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            foregroundColor: Colors.white,
+                            shadowColor: Colors.transparent,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 16,
+                            ),
+                          ),
+                          onPressed: () => _loadPage(null),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
                 Expanded(
                   child: Form(
                     key: _formKey,
                     child: ListView(
                       children: [
-                        TextFormField(
-                          controller: _pageIdController,
-                          decoration: const InputDecoration(
-                            labelText: 'Page ID',
-                            helperText: 'Used internally for storage',
+                        // Page details card
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surface,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color:
+                                  theme.colorScheme.outlineVariant.withOpacity(0.3),
+                            ),
                           ),
-                          readOnly: _isExistingPage,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter an identifier';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _pageTitleController,
-                          decoration: const InputDecoration(
-                            labelText: 'Page title',
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.info_outline,
+                                    color: theme.colorScheme.primary,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Page Details',
+                                    style:
+                                        theme.textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _pageIdController,
+                                decoration: InputDecoration(
+                                  labelText: 'Page ID',
+                                  helperText: 'Used internally for storage',
+                                  prefixIcon: const Icon(Icons.tag),
+                                  filled: true,
+                                  fillColor: _isExistingPage
+                                      ? theme.colorScheme.surfaceVariant
+                                          .withOpacity(0.3)
+                                      : null,
+                                ),
+                                readOnly: _isExistingPage,
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter an identifier';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _pageTitleController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Page title',
+                                  prefixIcon: Icon(Icons.title),
+                                ),
+                                textCapitalization: TextCapitalization.words,
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter a title';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ],
                           ),
-                          textCapitalization: TextCapitalization.words,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter a title';
-                            }
-                            return null;
-                          },
                         ),
                         const SizedBox(height: 24),
-                        Row(
-                          children: [
-                            Text(
-                              'Sections',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold),
+                        // Sections header
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                theme.colorScheme.primary.withOpacity(0.1),
+                                theme.colorScheme.secondary.withOpacity(0.1),
+                              ],
                             ),
-                            const Spacer(),
-                            FilledButton.icon(
-                              icon: const Icon(Icons.library_add),
-                              label: const Text('Add section'),
-                              onPressed: () async {
-                                final section = await showDialog<LyricSection>(
-                                  context: context,
-                                  builder: (context) => SectionEditorDialog(
-                                    pageId: _pageIdController.text,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.queue_music,
+                                color: theme.colorScheme.primary,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Sections',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const Spacer(),
+                              Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      theme.colorScheme.primary,
+                                      theme.colorScheme.secondary,
+                                    ],
                                   ),
-                                );
-                                if (section != null) {
-                                  setState(() {
-                                    _sections = _upsertSectionLocally(section);
-                                  });
-                                  await _commitPage(context);
-                                }
-                              },
-                            ),
-                          ],
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: theme.colorScheme.primary
+                                          .withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () async {
+                                      final section =
+                                          await showDialog<LyricSection>(
+                                        context: context,
+                                        builder: (context) =>
+                                            SectionEditorDialog(
+                                          pageId: _pageIdController.text,
+                                        ),
+                                      );
+                                      if (section != null) {
+                                        setState(() {
+                                          _sections =
+                                              _upsertSectionLocally(section);
+                                        });
+                                        await _commitPage(context);
+                                      }
+                                    },
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 10,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: const [
+                                          Icon(
+                                            Icons.library_add,
+                                            color: Colors.white,
+                                            size: 18,
+                                          ),
+                                          SizedBox(width: 6),
+                                          Text(
+                                            'Add',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
                         if (_sections.isEmpty)
                           Container(
-                            padding: const EdgeInsets.all(24),
+                            padding: const EdgeInsets.all(40),
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
+                              color: theme.colorScheme.surfaceVariant
+                                  .withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .outlineVariant,
+                                color: theme.colorScheme.outlineVariant
+                                    .withOpacity(0.3),
+                                style: BorderStyle.solid,
+                                width: 2,
                               ),
                             ),
-                            child: const Center(
-                              child: Text('No sections yet. Tap “Add section”.'),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.music_note,
+                                  size: 48,
+                                  color: theme.colorScheme.onSurfaceVariant
+                                      .withOpacity(0.3),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No sections yet',
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant
+                                        .withOpacity(0.6),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Tap "Add" to create your first section',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant
+                                        .withOpacity(0.5),
+                                  ),
+                                ),
+                              ],
                             ),
                           )
                         else
                           ..._sections.map(
-                            (section) => Card(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                            (section) => Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    theme.colorScheme.primaryContainer
+                                        .withOpacity(0.3),
+                                    theme.colorScheme.secondaryContainer
+                                        .withOpacity(0.3),
+                                  ],
+                                ),
+                                border: Border.all(
+                                  color: theme.colorScheme.outlineVariant
+                                      .withOpacity(0.3),
+                                ),
                               ),
-                              child: ListTile(
-                                title: Text(section.title),
-                                subtitle: Text(section.note),
-                                trailing: Wrap(
-                                  spacing: 8,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.edit),
-                                      tooltip: 'Edit section',
-                                      onPressed: () async {
-                                        final updated =
-                                            await showDialog<LyricSection>(
-                                          context: context,
-                                          builder: (context) => SectionEditorDialog(
-                                            pageId: _pageIdController.text,
-                                            section: section,
-                                          ),
-                                        );
-                                        if (updated != null) {
-                                          setState(() {
-                                            _sections =
-                                                _upsertSectionLocally(updated);
-                                          });
-                                          await _commitPage(context);
-                                        }
-                                      },
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete),
-                                      tooltip: 'Remove section',
-                                      onPressed: () async {
-                                        final confirmed = await showDialog<bool>(
-                                          context: context,
-                                          builder: (context) => AlertDialog(
-                                            title: const Text('Remove section'),
-                                            content: Text(
-                                              'Are you sure you want to remove "${section.title}"?',
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () async {
+                                    final provider =
+                                        context.read<LyricsProvider>();
+                                    await provider.playSection(section);
+                                  },
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                theme.colorScheme.primary
+                                                    .withOpacity(0.2),
+                                                theme.colorScheme.secondary
+                                                    .withOpacity(0.2),
+                                              ],
                                             ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () =>
-                                                    Navigator.of(context)
-                                                        .pop(false),
-                                                child: const Text('Cancel'),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          child: Icon(
+                                            Icons.music_note_rounded,
+                                            color: theme.colorScheme.primary,
+                                            size: 24,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                section.title,
+                                                style: theme
+                                                    .textTheme.titleMedium
+                                                    ?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
                                               ),
-                                              FilledButton(
-                                                onPressed: () =>
-                                                    Navigator.of(context)
-                                                        .pop(true),
-                                                child: const Text('Remove'),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                section.note,
+                                                style: theme.textTheme.bodySmall
+                                                    ?.copyWith(
+                                                  color: theme.colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
                                               ),
                                             ],
                                           ),
-                                        );
-                                        if (confirmed == true) {
-                                          setState(() {
-                                            _sections = _sections
-                                                .where((s) => s.id != section.id)
-                                                .toList();
-                                          });
-                                          await _commitPage(context);
-                                        }
-                                      },
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.surface
+                                                .withOpacity(0.8),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(
+                                                icon: Icon(
+                                                  Icons.edit_outlined,
+                                                  color:
+                                                      theme.colorScheme.primary,
+                                                ),
+                                                tooltip: 'Edit',
+                                                onPressed: () async {
+                                                  final updated =
+                                                      await showDialog<
+                                                          LyricSection>(
+                                                    context: context,
+                                                    builder: (context) =>
+                                                        SectionEditorDialog(
+                                                      pageId: _pageIdController
+                                                          .text,
+                                                      section: section,
+                                                    ),
+                                                  );
+                                                  if (updated != null) {
+                                                    setState(() {
+                                                      _sections =
+                                                          _upsertSectionLocally(
+                                                              updated);
+                                                    });
+                                                    await _commitPage(context);
+                                                  }
+                                                },
+                                              ),
+                                              IconButton(
+                                                icon: Icon(
+                                                  Icons.delete_outline,
+                                                  color: theme
+                                                      .colorScheme.error,
+                                                ),
+                                                tooltip: 'Remove',
+                                                onPressed: () async {
+                                                  final confirmed =
+                                                      await showDialog<bool>(
+                                                    context: context,
+                                                    builder: (context) =>
+                                                        AlertDialog(
+                                                      title: const Text(
+                                                          'Remove section'),
+                                                      content: Text(
+                                                        'Are you sure you want to remove "${section.title}"?',
+                                                      ),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () =>
+                                                              Navigator.of(
+                                                                      context)
+                                                                  .pop(false),
+                                                          child: const Text(
+                                                              'Cancel'),
+                                                        ),
+                                                        FilledButton(
+                                                          onPressed: () =>
+                                                              Navigator.of(
+                                                                      context)
+                                                                  .pop(true),
+                                                          child: const Text(
+                                                              'Remove'),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+                                                  if (confirmed == true) {
+                                                    setState(() {
+                                                      _sections = _sections
+                                                          .where((s) =>
+                                                              s.id !=
+                                                              section.id)
+                                                          .toList();
+                                                    });
+                                                    await _commitPage(context);
+                                                  }
+                                                },
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
                                 ),
-                                onTap: () async {
-                                  final provider =
-                                      context.read<LyricsProvider>();
-                                  await provider.playSection(section);
-                                },
                               ),
                             ),
                           ),
@@ -250,12 +561,36 @@ class _EditorPageState extends State<EditorPage> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 16),
                 SafeArea(
-                  child: SizedBox(
+                  child: Container(
                     width: double.infinity,
-                    child: FilledButton(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          theme.colorScheme.primary,
+                          theme.colorScheme.tertiary,
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.colorScheme.primary.withOpacity(0.4),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.save),
+                      label: const Text('Save Changes'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        foregroundColor: Colors.white,
+                        shadowColor: Colors.transparent,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
                       onPressed: () => _commitPage(context),
-                      child: const Text('Save changes'),
                     ),
                   ),
                 ),
@@ -320,9 +655,24 @@ class _EditorPageState extends State<EditorPage> {
         _isExistingPage = true;
       });
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Library updated')),
-    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Library updated successfully'),
+            ],
+          ),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
   }
 }
 
@@ -384,126 +734,199 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Dialog(
       insetPadding: const EdgeInsets.all(16),
-      child: ConstrainedBox(
+      backgroundColor: Colors.transparent,
+      child: Container(
         constraints: const BoxConstraints(maxWidth: 520),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  widget.section == null ? 'New section' : 'Edit section',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _idController,
-                  decoration: const InputDecoration(
-                    labelText: 'Section ID',
-                  ),
-                  readOnly: widget.section != null,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Enter an identifier';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Section title',
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Enter a title';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _noteController,
-                  decoration: const InputDecoration(
-                    labelText: 'Notes for performers',
-                  ),
-                  textCapitalization: TextCapitalization.sentences,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Provide a short note';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _audioUrlController,
-                  decoration: const InputDecoration(
-                    labelText: 'Audio asset or URL',
-                    helperText: 'Supports bundled assets or remote links',
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Provide an audio reference';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _durationController,
-                  decoration: const InputDecoration(
-                    labelText: 'Duration in seconds',
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    final parsed = int.tryParse(value ?? '');
-                    if (parsed == null || parsed <= 0) {
-                      return 'Enter a positive number';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _lyricsController,
-                  decoration: const InputDecoration(
-                    labelText: 'Lyric lines',
-                    helperText: 'Enter one line per row',
-                  ),
-                  maxLines: 6,
-                  validator: (value) {
-                    if (value == null ||
-                        value.split('\n').where((line) => line.trim().isNotEmpty).isEmpty) {
-                      return 'Enter at least one lyric line';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withOpacity(0.3),
+            width: 1,
+          ),
+        ),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          theme.colorScheme.primaryContainer,
+                          theme.colorScheme.secondaryContainer,
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    const SizedBox(width: 12),
-                    FilledButton(
-                      onPressed: _submit,
-                      child: const Text('Save'),
+                    child: Row(
+                      children: [
+                        Icon(
+                          widget.section == null
+                              ? Icons.add_circle_outline
+                              : Icons.edit_outlined,
+                          color: theme.colorScheme.onPrimaryContainer,
+                          size: 28,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            widget.section == null
+                                ? 'New Section'
+                                : 'Edit Section',
+                            style:
+                                theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 24),
+                  TextFormField(
+                    controller: _idController,
+                    decoration: const InputDecoration(
+                      labelText: 'Section ID',
+                      prefixIcon: Icon(Icons.tag),
+                    ),
+                    readOnly: widget.section != null,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Enter an identifier';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _titleController,
+                    decoration: const InputDecoration(
+                      labelText: 'Section title',
+                      prefixIcon: Icon(Icons.title),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Enter a title';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _noteController,
+                    decoration: const InputDecoration(
+                      labelText: 'Notes for performers',
+                      prefixIcon: Icon(Icons.note),
+                    ),
+                    textCapitalization: TextCapitalization.sentences,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Provide a short note';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _audioUrlController,
+                    decoration: const InputDecoration(
+                      labelText: 'Audio asset or URL',
+                      helperText: 'Supports bundled assets or remote links',
+                      prefixIcon: Icon(Icons.audiotrack),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Provide an audio reference';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _durationController,
+                    decoration: const InputDecoration(
+                      labelText: 'Duration in seconds',
+                      prefixIcon: Icon(Icons.timer),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      final parsed = int.tryParse(value ?? '');
+                      if (parsed == null || parsed <= 0) {
+                        return 'Enter a positive number';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _lyricsController,
+                    decoration: const InputDecoration(
+                      labelText: 'Lyric lines',
+                      helperText: 'Enter one line per row',
+                      prefixIcon: Icon(Icons.lyrics),
+                      alignLabelWithHint: true,
+                    ),
+                    maxLines: 6,
+                    validator: (value) {
+                      if (value == null ||
+                          value.split('\n').where((line) => line.trim().isNotEmpty).isEmpty) {
+                        return 'Enter at least one lyric line';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 28),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              theme.colorScheme.primary,
+                              theme.colorScheme.secondary,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  theme.colorScheme.primary.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.check),
+                          label: const Text('Save'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            foregroundColor: Colors.white,
+                            shadowColor: Colors.transparent,
+                          ),
+                          onPressed: _submit,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
