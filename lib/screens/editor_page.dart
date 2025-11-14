@@ -1,4 +1,9 @@
+import 'dart:io';
+
+import 'package:audioplayers/audioplayers.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../models/audio_metadata.dart';
@@ -35,6 +40,156 @@ class _EditorPageState extends State<EditorPage> {
     _dayController.dispose();
     _iconController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickAudioFile() async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.audio);
+    if (result == null) {
+      return;
+    }
+    final filePath = result.files.single.path;
+    if (filePath == null) {
+      setState(() {
+        _audioValidationError =
+            'Unable to access the selected file. Please try another audio.';
+      });
+      return;
+    }
+    setState(() {
+      _pickedFilePath = filePath;
+      _initialStoredAudioPath = null;
+      _pickedFileDuration = null;
+      _audioUrlController.clear();
+      _audioValidationError = null;
+    });
+    await _loadDurationFromFile(filePath);
+  }
+
+  void _clearPickedFile() {
+    setState(() {
+      _pickedFilePath = null;
+      _initialStoredAudioPath = null;
+      _pickedFileDuration = null;
+      _isLoadingDuration = false;
+      _audioValidationError = null;
+    });
+  }
+
+  Future<void> _loadDurationFromFile(String path) async {
+    setState(() {
+      _isLoadingDuration = true;
+    });
+    try {
+      await _previewPlayer.setSource(DeviceFileSource(path));
+      final duration = await _previewPlayer.getDuration();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _pickedFileDuration = duration;
+        if (duration != null) {
+          _durationController.text = duration.inSeconds.toString();
+        }
+        _audioValidationError = null;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _audioValidationError =
+            'Failed to analyze the selected audio file. Please ensure it plays correctly.';
+      });
+    } finally {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoadingDuration = false;
+      });
+    }
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} (${duration.inSeconds}s)';
+  }
+
+  String? _resolveLocalAudioPath(String value) {
+    if (value.isEmpty) {
+      return null;
+    }
+    final uri = Uri.tryParse(value);
+    if (uri != null && uri.scheme == 'file') {
+      return uri.toFilePath();
+    }
+    try {
+      final file = File(value);
+      if (file.isAbsolute) {
+        return value;
+      }
+    } catch (_) {
+      // ignore invalid paths
+    }
+    return null;
+  }
+
+  String _fileNameFromPath(String path) {
+    final normalized = path.replaceAll('\\', '/');
+    if (normalized.contains('/')) {
+      final parts = normalized.split('/');
+      if (parts.isNotEmpty) {
+        return parts.last;
+      }
+    }
+    final uri = Uri.tryParse(path);
+    if (uri != null && uri.pathSegments.isNotEmpty) {
+      return uri.pathSegments.last;
+    }
+    return path;
+  }
+
+  String _sanitizeFileName(String value) {
+    return value.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+  }
+
+  Future<String?> _persistSelectedFile() async {
+    final selectedPath = _pickedFilePath;
+    if (selectedPath == null) {
+      return null;
+    }
+    try {
+      final file = File(selectedPath);
+      if (_initialStoredAudioPath != null &&
+          _initialStoredAudioPath == selectedPath &&
+          await file.exists()) {
+        return selectedPath;
+      }
+      if (!await file.exists()) {
+        return null;
+      }
+      final docsDir = await getApplicationDocumentsDirectory();
+      final audioDir =
+          Directory('${docsDir.path}${Platform.pathSeparator}audio');
+      if (!await audioDir.exists()) {
+        await audioDir.create(recursive: true);
+      }
+      final sectionId = _idController.text.trim().isEmpty
+          ? 'section'
+          : _idController.text.trim();
+      final fileName = _sanitizeFileName(
+        '${widget.pageId}_$sectionId_${DateTime.now().millisecondsSinceEpoch}_${_fileNameFromPath(selectedPath)}',
+      );
+      final destinationPath =
+          '${audioDir.path}${Platform.pathSeparator}$fileName';
+      final copiedFile = await file.copy(destinationPath);
+      _initialStoredAudioPath = copiedFile.path;
+      _pickedFilePath = copiedFile.path;
+      return copiedFile.path;
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
@@ -820,15 +975,27 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
   late final TextEditingController _audioUrlController;
   late final TextEditingController _durationController;
   late final TextEditingController _lyricsController;
+  late final AudioPlayer _previewPlayer;
+
+  String? _pickedFilePath;
+  String? _initialStoredAudioPath;
+  Duration? _pickedFileDuration;
+  bool _isLoadingDuration = false;
+  bool _isSaving = false;
+  String? _audioValidationError;
 
   @override
   void initState() {
     super.initState();
+    _previewPlayer = AudioPlayer();
+    final initialAudioUrl = widget.section?.audio.url ?? '';
+    final localPath = _resolveLocalAudioPath(initialAudioUrl);
     _idController = TextEditingController(text: widget.section?.id ?? '');
     _titleController = TextEditingController(text: widget.section?.title ?? '');
     _noteController = TextEditingController(text: widget.section?.note ?? '');
-    _audioUrlController =
-        TextEditingController(text: widget.section?.audio.url ?? '');
+    _audioUrlController = TextEditingController(
+      text: localPath == null ? initialAudioUrl : '',
+    );
     _durationController = TextEditingController(
       text: widget.section != null
           ? widget.section!.audio.duration.toString()
@@ -841,6 +1008,12 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
               .map((line) => line.text)
               .join('\n'),
     );
+    _pickedFilePath = localPath;
+    _initialStoredAudioPath = localPath;
+    if (localPath != null) {
+      _pickedFileDuration = Duration(seconds: widget.section!.audio.duration);
+      _loadDurationFromFile(localPath);
+    }
   }
 
   @override
@@ -851,6 +1024,7 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
     _audioUrlController.dispose();
     _durationController.dispose();
     _lyricsController.dispose();
+    _previewPlayer.dispose();
     super.dispose();
   }
 
@@ -959,19 +1133,141 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _audioUrlController,
-                    decoration: const InputDecoration(
-                      labelText: 'Audio asset or URL',
-                      helperText: 'Supports bundled assets or remote links',
-                      prefixIcon: Icon(Icons.audiotrack),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Provide an audio reference';
-                      }
-                      return null;
-                    },
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Audio source',
+                        style: theme.textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.folder_open),
+                              label: Text(
+                                _pickedFilePath == null
+                                    ? 'Browse local audio'
+                                    : 'Replace selected audio',
+                              ),
+                              onPressed: _pickAudioFile,
+                            ),
+                          ),
+                          if (_pickedFilePath != null)
+                            IconButton(
+                              tooltip: 'Remove selected file',
+                              onPressed: _clearPickedFile,
+                              icon: const Icon(Icons.close),
+                            ),
+                        ],
+                      ),
+                      if (_pickedFilePath != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.secondaryContainer
+                                .withOpacity(0.4),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: theme.colorScheme.outlineVariant,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.audiotrack,
+                                    color: theme.colorScheme.onSecondaryContainer,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _fileNameFromPath(_pickedFilePath!),
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              if (_isLoadingDuration)
+                                Row(
+                                  children: const [
+                                    SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text('Analyzing duration...'),
+                                  ],
+                                )
+                              else if (_pickedFileDuration != null)
+                                Text(
+                                  'Duration: ${_formatDuration(_pickedFileDuration!)}',
+                                  style: theme.textTheme.bodySmall,
+                                )
+                              else
+                                Text(
+                                  'Duration: Unknown — please confirm manually.',
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                              Text(
+                                'Location: ${_pickedFilePath!}',
+                                style: theme.textTheme.bodySmall,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'The file will be copied into the app library when saved.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSecondaryContainer
+                                      .withOpacity(0.7),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _audioUrlController,
+                        decoration: const InputDecoration(
+                          labelText: 'Audio asset or URL',
+                          helperText: 'Optional when a local file is selected',
+                          prefixIcon: Icon(Icons.link),
+                        ),
+                        onChanged: (_) {
+                          if (_audioValidationError != null) {
+                            setState(() {
+                              _audioValidationError = null;
+                            });
+                          }
+                        },
+                        validator: (value) {
+                          if (_pickedFilePath == null &&
+                              (value == null || value.trim().isEmpty)) {
+                            return 'Provide an audio reference or choose a file';
+                          }
+                          return null;
+                        },
+                      ),
+                      if (_audioValidationError != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _audioValidationError!,
+                          style: TextStyle(color: theme.colorScheme.error),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -1035,14 +1331,25 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
                           ],
                         ),
                         child: ElevatedButton.icon(
-                          icon: const Icon(Icons.check),
-                          label: const Text('Save'),
+                          icon: _isSaving
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                )
+                              : const Icon(Icons.check),
+                          label: Text(_isSaving ? 'Saving...' : 'Save'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.transparent,
                             foregroundColor: Colors.white,
                             shadowColor: Colors.transparent,
                           ),
-                          onPressed: _submit,
+                          onPressed: _isSaving ? null : _submit,
                         ),
                       ),
                     ],
@@ -1056,10 +1363,43 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
     );
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    if (_isSaving) {
+      return;
+    }
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    if (_pickedFilePath == null &&
+        _audioUrlController.text.trim().isEmpty) {
+      setState(() {
+        _audioValidationError =
+            'Select a local audio file or provide an asset/URL reference.';
+      });
+      return;
+    }
+    setState(() {
+      _audioValidationError = null;
+      _isSaving = true;
+    });
+
+    var audioReference = _audioUrlController.text.trim();
+    if (_pickedFilePath != null) {
+      final storedPath = await _persistSelectedFile();
+      if (storedPath == null) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _audioValidationError =
+              'Unable to store the selected audio. Please try again.';
+          _isSaving = false;
+        });
+        return;
+      }
+      audioReference = storedPath;
+    }
+
     final duration = int.parse(_durationController.text.trim());
     final lines = _lyricsController.text
         .split('\n')
@@ -1075,11 +1415,17 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
       title: _titleController.text.trim(),
       note: _noteController.text.trim(),
       audio: AudioMetadata(
-        url: _audioUrlController.text.trim(),
+        url: audioReference,
         duration: duration,
       ),
       lyrics: lyricLines,
     );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isSaving = false;
+    });
     Navigator.of(context).pop(section);
   }
 }
