@@ -297,9 +297,8 @@ class LyricsProvider extends ChangeNotifier {
   Future<void> playSection(LyricSection section) async {
     _currentSection = section;
     await _audioPlayer.stop();
-    final source = section.audio.url.startsWith('http')
-        ? UrlSource(section.audio.url)
-        : AssetSource(section.audio.url);
+    final url = section.audio.url;
+    final source = _buildAudioSource(url);
     await _audioPlayer.play(source);
     notifyListeners();
   }
@@ -314,6 +313,27 @@ class LyricsProvider extends ChangeNotifier {
         await playSection(_currentSection!);
       }
     }
+  }
+
+  Source _buildAudioSource(String url) {
+    final uri = Uri.tryParse(url);
+    final isRemote = uri != null &&
+        (uri.scheme == 'http' || uri.scheme == 'https');
+    if (isRemote) {
+      return UrlSource(url);
+    }
+    if (uri != null && uri.scheme == 'file') {
+      return DeviceFileSource(uri.toFilePath());
+    }
+    try {
+      final file = File(url);
+      if (file.isAbsolute) {
+        return DeviceFileSource(file.path);
+      }
+    } catch (_) {
+      // Fall back to treating the url as an asset reference.
+    }
+    return AssetSource(url);
   }
 
   Future<void> seek(Duration position) async {
