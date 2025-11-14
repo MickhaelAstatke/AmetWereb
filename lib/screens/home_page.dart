@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
 
+import '../models/lyric_page.dart';
 import '../models/lyric_section.dart';
 import '../providers/lyrics_provider.dart';
 import '../widgets/now_playing_bar.dart';
@@ -15,9 +16,48 @@ class HomePage extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scrollController = useScrollController();
     return Consumer<LyricsProvider>(
       builder: (context, provider, _) {
+        final months = provider.sortedMonths;
+        final selectedMonth = provider.selectedMonth;
+        final dropdownValue =
+            months.contains(selectedMonth) ? selectedMonth : null;
+        final monthPages = dropdownValue == null
+            ? const <LyricPage>[]
+            : provider.pagesForMonth(dropdownValue);
+        final selectedPage = provider.selectedPage;
+        final activeIndex = selectedPage == null
+            ? -1
+            : monthPages.indexWhere((page) => page.id == selectedPage.id);
+        final pageController = usePageController();
+
+        useEffect(() {
+          if (selectedPage == null || dropdownValue == null) {
+            return null;
+          }
+          final targetIndex =
+              monthPages.indexWhere((page) => page.id == selectedPage.id);
+          if (targetIndex < 0) {
+            return null;
+          }
+          void jump() {
+            if (!pageController.hasClients) {
+              return;
+            }
+            final currentPage = pageController.page?.round();
+            if (currentPage != targetIndex) {
+              pageController.jumpToPage(targetIndex);
+            }
+          }
+
+          if (pageController.hasClients) {
+            jump();
+          } else {
+            WidgetsBinding.instance.addPostFrameCallback((_) => jump());
+          }
+          return null;
+        }, [selectedPage?.id, dropdownValue, monthPages.length]);
+
         return Scaffold(
           appBar: AppBar(
             title: Row(
@@ -186,8 +226,8 @@ class HomePage extends HookWidget {
                                       ),
                                 ),
                                 const SizedBox(height: 8),
-                                DropdownButtonFormField(
-                                  value: provider.selectedPage,
+                                DropdownButtonFormField<String>(
+                                  value: dropdownValue,
                                   decoration: InputDecoration(
                                     filled: true,
                                     fillColor: Theme.of(context)
@@ -204,12 +244,12 @@ class HomePage extends HookWidget {
                                     ),
                                   ),
                                   dropdownColor: Theme.of(context).colorScheme.surface,
-                                  items: provider.pages
+                                  items: months
                                       .map(
-                                        (page) => DropdownMenuItem(
-                                          value: page,
+                                        (month) => DropdownMenuItem(
+                                          value: month,
                                           child: Text(
-                                            page.title,
+                                            month,
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .titleMedium,
@@ -217,11 +257,11 @@ class HomePage extends HookWidget {
                                         ),
                                       )
                                       .toList(),
-                                  onChanged: provider.pages.isEmpty
+                                  onChanged: months.isEmpty
                                       ? null
                                       : (value) {
                                           if (value != null) {
-                                            provider.selectPage(value);
+                                            provider.selectMonth(value);
                                           }
                                         },
                                 ),
@@ -231,8 +271,37 @@ class HomePage extends HookWidget {
                         ],
                       ),
                     ),
+                    if (monthPages.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            for (var i = 0; i < monthPages.length; i++)
+                              AnimatedContainer(
+                                key: ValueKey('month_indicator_$i'),
+                                duration: const Duration(milliseconds: 250),
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 4),
+                                height: 8,
+                                width: activeIndex == i ? 24 : 8,
+                                decoration: BoxDecoration(
+                                  color: activeIndex == i
+                                      ? Theme.of(context)
+                                          .colorScheme
+                                          .primary
+                                      : Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     Expanded(
-                      child: provider.selectedPage == null
+                      child: dropdownValue == null
                           ? Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -257,7 +326,7 @@ class HomePage extends HookWidget {
                                   ),
                                   const SizedBox(height: 24),
                                   Text(
-                                    'No pages available',
+                                    'Add some holidays to get started',
                                     style: Theme.of(context)
                                         .textTheme
                                         .titleMedium
@@ -271,27 +340,47 @@ class HomePage extends HookWidget {
                                 ],
                               ),
                             )
-                          : ListView.builder(
-                              controller: scrollController,
-                              padding: const EdgeInsets.only(
-                                left: 16,
-                                right: 16,
-                                bottom: 88,
-                                top: 8,
-                              ),
-                              itemCount: provider.selectedPage!.sections.length,
-                              itemBuilder: (context, index) {
-                                final section =
-                                    provider.selectedPage!.sections[index];
-                                return _LyricSectionTile(
-                                  section: section,
-                                  isActive: provider.currentSection?.id ==
-                                      section.id,
-                                  onTap: () => provider.playSection(section),
-                                  index: index,
-                                );
-                              },
-                            ),
+                          : monthPages.isEmpty
+                              ? _EmptyMonthState(month: dropdownValue)
+                              : PageView.builder(
+                                  controller: pageController,
+                                  onPageChanged: (index) {
+                                    if (index < 0 ||
+                                        index >= monthPages.length) {
+                                      return;
+                                    }
+                                    final page = monthPages[index];
+                                    if (provider.selectedPage?.id != page.id) {
+                                      provider.selectPage(page);
+                                    }
+                                  },
+                                  itemCount: monthPages.length,
+                                  itemBuilder: (context, pageIndex) {
+                                    final page = monthPages[pageIndex];
+                                    return ListView.builder(
+                                      key: PageStorageKey<String>('page_${page.id}'),
+                                      padding: const EdgeInsets.only(
+                                        left: 16,
+                                        right: 16,
+                                        bottom: 88,
+                                        top: 8,
+                                      ),
+                                      itemCount: page.sections.length,
+                                      itemBuilder: (context, index) {
+                                        final section = page.sections[index];
+                                        return _LyricSectionTile(
+                                          section: section,
+                                          isActive: provider
+                                                  .currentSection?.id ==
+                                              section.id,
+                                          onTap: () =>
+                                              provider.playSection(section),
+                                          index: index,
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
                     ),
                   ],
                 ),
@@ -576,6 +665,53 @@ class _LyricSectionTile extends HookWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _EmptyMonthState extends StatelessWidget {
+  const _EmptyMonthState({required this.month});
+
+  final String month;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color:
+                  theme.colorScheme.surfaceVariant.withOpacity(0.25),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.event_busy,
+              size: 64,
+              color: theme.colorScheme.onSurface.withOpacity(0.3),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'No holidays for $month yet',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.6),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Add a holiday to this month from the editor to see it here.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.5),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
