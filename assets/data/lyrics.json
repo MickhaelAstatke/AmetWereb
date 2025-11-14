@@ -3,6 +3,9 @@
     {
       "id": "evening_praise",
       "title": "Evening Praise",
+      "month": "Meskerem",
+      "day": 17,
+      "icon": "nightlight_round",
       "sections": [
         {
           "id": "prelude",
@@ -47,6 +50,9 @@
     {
       "id": "morning_grace",
       "title": "Morning Grace",
+      "month": "Tahisas",
+      "day": 12,
+      "icon": "wb_sunny",
       "sections": [
         {
           "id": "call_to_worship",

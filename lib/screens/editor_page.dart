@@ -20,6 +20,10 @@ class _EditorPageState extends State<EditorPage> {
   final _formKey = GlobalKey<FormState>();
   final _pageIdController = TextEditingController();
   final _pageTitleController = TextEditingController();
+  final _dayController = TextEditingController();
+  final _iconController = TextEditingController();
+
+  String? _selectedMonth;
 
   List<LyricSection> _sections = [];
   bool _isExistingPage = false;
@@ -28,6 +32,8 @@ class _EditorPageState extends State<EditorPage> {
   void dispose() {
     _pageIdController.dispose();
     _pageTitleController.dispose();
+    _dayController.dispose();
+    _iconController.dispose();
     super.dispose();
   }
 
@@ -162,6 +168,41 @@ class _EditorPageState extends State<EditorPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
+                if (provider.needsMonthMetadataMigration)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Card(
+                      color: theme.colorScheme.tertiaryContainer,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.calendar_month,
+                              color: theme.colorScheme.onTertiaryContainer,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Some holidays are missing Ethiopian month data. '
+                                'Select each page and assign the correct month '
+                                'so the calendar view can group them properly.',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color:
+                                      theme.colorScheme.onTertiaryContainer,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 Expanded(
                   child: Form(
                     key: _formKey,
@@ -233,6 +274,74 @@ class _EditorPageState extends State<EditorPage> {
                                   }
                                   return null;
                                 },
+                              ),
+                              const SizedBox(height: 16),
+                              DropdownButtonFormField<String>(
+                                value: _selectedMonth,
+                                decoration: const InputDecoration(
+                                  labelText: 'Ethiopian month',
+                                  prefixIcon: Icon(Icons.calendar_today),
+                                ),
+                                items: LyricPage.ethiopianMonths
+                                    .map(
+                                      (month) => DropdownMenuItem(
+                                        value: month,
+                                        child: Text(month),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedMonth = value;
+                                  });
+                                },
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please choose a month';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _dayController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Day of month',
+                                  helperText:
+                                      'Optional Ethiopian calendar day (1-30, Pagume up to 6)',
+                                  prefixIcon: Icon(Icons.event),
+                                ),
+                                keyboardType: TextInputType.number,
+                                validator: (value) {
+                                  if (value == null) {
+                                    return null;
+                                  }
+                                  final trimmed = value.trim();
+                                  if (trimmed.isEmpty) {
+                                    return null;
+                                  }
+                                  final parsed = int.tryParse(trimmed);
+                                  if (parsed == null) {
+                                    return 'Enter a valid number';
+                                  }
+                                  final maxDay =
+                                      _selectedMonth == 'Pagume' ? 6 : 30;
+                                  if (parsed < 1 || parsed > maxDay) {
+                                    return 'Enter a day between 1 and $maxDay';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _iconController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Icon identifier',
+                                  helperText:
+                                      'Optional Material icon name or asset path',
+                                  prefixIcon: Icon(Icons.image_outlined),
+                                ),
+                                textCapitalization: TextCapitalization.none,
                               ),
                             ],
                           ),
@@ -611,11 +720,17 @@ class _EditorPageState extends State<EditorPage> {
           ..selection = const TextSelection.collapsed(offset: 0);
         _pageTitleController.text = '';
         _sections = [];
+        _selectedMonth = null;
+        _dayController.clear();
+        _iconController.clear();
       } else {
         _isExistingPage = true;
         _pageIdController.text = page.id;
         _pageTitleController.text = page.title;
         _sections = List.of(page.sections);
+        _selectedMonth = page.hasKnownMonth ? page.month : null;
+        _dayController.text = page.day?.toString() ?? '';
+        _iconController.text = page.icon ?? '';
       }
     });
   }
@@ -641,9 +756,16 @@ class _EditorPageState extends State<EditorPage> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    final month = _selectedMonth ?? LyricPage.unknownMonth;
+    final dayText = _dayController.text.trim();
+    final day = dayText.isEmpty ? null : int.parse(dayText);
+    final iconText = _iconController.text.trim();
     final page = LyricPage(
       id: _pageIdController.text.trim(),
       title: _pageTitleController.text.trim(),
+      month: month,
+      day: day,
+      icon: iconText.isEmpty ? null : iconText,
       sections: _sections,
     );
     final provider = context.read<LyricsProvider>();

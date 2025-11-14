@@ -17,4 +17,12 @@ class LyricsRepository {
         .map((dynamic e) => LyricPage.fromJson(e as Map<String, dynamic>))
         .toList();
   }
+
+  Map<String, List<LyricPage>> groupPagesByMonth(Iterable<LyricPage> pages) {
+    final grouped = <String, List<LyricPage>>{};
+    for (final page in pages) {
+      grouped.putIfAbsent(page.month, () => <LyricPage>[]).add(page);
+    }
+    return grouped;
+  }
 }
