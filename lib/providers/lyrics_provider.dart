@@ -24,6 +24,7 @@ class LyricsProvider extends ChangeNotifier {
 
   List<LyricPage> _pages = const [];
   LyricPage? _selectedPage;
+  String? _selectedMonth;
   LyricSection? _currentSection;
   Duration _currentPosition = Duration.zero;
   StreamSubscription<Duration>? _positionSub;
@@ -37,6 +38,7 @@ class LyricsProvider extends ChangeNotifier {
 
   List<LyricPage> get pages => _pages;
   LyricPage? get selectedPage => _selectedPage;
+  String? get selectedMonth => _selectedMonth;
   LyricSection? get currentSection => _currentSection;
   AudioPlayer get audioPlayer => _audioPlayer;
   Duration get currentPosition => _currentPosition;
@@ -109,6 +111,8 @@ class LyricsProvider extends ChangeNotifier {
       }
       if (_pages.isNotEmpty) {
         selectPage(_pages.first);
+      } else {
+        _selectedMonth = null;
       }
     } finally {
       _isLoading = false;
@@ -118,6 +122,11 @@ class LyricsProvider extends ChangeNotifier {
 
   void selectPage(LyricPage page) {
     _selectedPage = page;
+    final resolvedMonth =
+        page.hasKnownMonth ? page.month : LyricPage.unknownMonth;
+    if (_selectedMonth != resolvedMonth) {
+      _selectedMonth = resolvedMonth;
+    }
     if (_currentSection != null &&
         page.sections.every((section) => section.id != _currentSection!.id)) {
       _currentSection = null;
@@ -125,18 +134,38 @@ class LyricsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void selectMonth(String month) {
+    if (_selectedMonth == month && _selectedPage != null) {
+      return;
+    }
+    _selectedMonth = month;
+    final monthPages = pagesForMonth(month);
+    if (monthPages.isEmpty) {
+      _selectedPage = null;
+      if (_currentSection != null) {
+        _currentSection = null;
+        unawaited(_audioPlayer.stop());
+      }
+      notifyListeners();
+      return;
+    }
+    selectPage(monthPages.first);
+  }
+
   Future<void> addPage(LyricPage page) async {
     _pages = [..._pages, page];
-    _selectedPage = page;
     _refreshMonthMetadataFlag();
     await _persist();
-    notifyListeners();
+    selectPage(page);
   }
 
   Future<void> updatePage(LyricPage page) async {
     _pages = _pages.map((p) => p.id == page.id ? page : p).toList();
-    if (_selectedPage?.id == page.id) {
+    final isSelected = _selectedPage?.id == page.id;
+    if (isSelected) {
       _selectedPage = page;
+      _selectedMonth =
+          page.hasKnownMonth ? page.month : LyricPage.unknownMonth;
     }
     if (_currentSection != null) {
       LyricSection? updatedSection;
@@ -155,7 +184,11 @@ class LyricsProvider extends ChangeNotifier {
     }
     _refreshMonthMetadataFlag();
     await _persist();
-    notifyListeners();
+    if (isSelected) {
+      selectPage(page);
+    } else {
+      notifyListeners();
+    }
   }
 
   Future<void> deletePage(String pageId) async {
@@ -170,17 +203,61 @@ class LyricsProvider extends ChangeNotifier {
       return;
     }
     _pages = _pages.where((p) => p.id != pageId).toList();
-    if (_selectedPage?.id == pageId) {
-      _selectedPage = _pages.isEmpty ? null : _pages.first;
-    }
+    var shouldStopAudio = false;
+    final removedSelected = _selectedPage?.id == pageId;
     if (_currentSection != null &&
         removedPage.sections.any((s) => s.id == _currentSection!.id)) {
       _currentSection = null;
-      await _audioPlayer.stop();
+      shouldStopAudio = true;
+    }
+    if (removedSelected) {
+      _selectedPage = null;
     }
     _refreshMonthMetadataFlag();
     await _persist();
+    if (shouldStopAudio) {
+      await _audioPlayer.stop();
+    }
+    if (_pages.isEmpty) {
+      _selectedPage = null;
+      _selectedMonth = null;
+      notifyListeners();
+      return;
+    }
+    if (removedSelected) {
+      final preferredMonth = _selectedMonth ??
+          (removedPage.hasKnownMonth
+              ? removedPage.month
+              : LyricPage.unknownMonth);
+      final monthPages = pagesForMonth(preferredMonth);
+      if (monthPages.isNotEmpty) {
+        selectMonth(preferredMonth);
+        return;
+      }
+      final fallbackMonths = sortedMonths;
+      if (fallbackMonths.isNotEmpty) {
+        selectMonth(fallbackMonths.first);
+        return;
+      }
+      _selectedPage = null;
+      _selectedMonth = null;
+    }
     notifyListeners();
+  }
+
+  @visibleForTesting
+  void replacePagesForTest(List<LyricPage> pages) {
+    _pages = List<LyricPage>.from(pages);
+    _refreshMonthMetadataFlag();
+    if (_pages.isEmpty) {
+      _selectedPage = null;
+      _selectedMonth = null;
+      _currentSection = null;
+      notifyListeners();
+      return;
+    }
+    _currentSection = null;
+    selectPage(_pages.first);
   }
 
   Future<void> upsertSection(String pageId, LyricSection section) async {
