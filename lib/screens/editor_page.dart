@@ -104,6 +104,7 @@ class _EditorPageState extends State<EditorPage> {
                           value: selectedPage,
                           decoration: InputDecoration(
                             labelText: 'Select a page',
+                            labelStyle: theme.textTheme.labelMedium,
                             filled: true,
                             fillColor: theme.colorScheme.surface,
                             border: OutlineInputBorder(
@@ -116,6 +117,7 @@ class _EditorPageState extends State<EditorPage> {
                             ),
                           ),
                           dropdownColor: theme.colorScheme.surface,
+                          style: theme.textTheme.titleMedium,
                           items: provider.pages
                               .map(
                                 (page) => DropdownMenuItem(
@@ -423,16 +425,16 @@ class _EditorPageState extends State<EditorPage> {
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
-                                        children: const [
-                                          Icon(
+                                        children: [
+                                          const Icon(
                                             Icons.library_add,
                                             color: Colors.white,
                                             size: 18,
                                           ),
-                                          SizedBox(width: 6),
+                                          const SizedBox(width: 6),
                                           Text(
                                             'Add',
-                                            style: TextStyle(
+                                            style: theme.textTheme.labelLarge?.copyWith(
                                               color: Colors.white,
                                               fontWeight: FontWeight.w600,
                                             ),

@@ -204,6 +204,7 @@ class HomePage extends HookWidget {
                                     ),
                                   ),
                                   dropdownColor: Theme.of(context).colorScheme.surface,
+                                  style: Theme.of(context).textTheme.titleMedium,
                                   items: provider.pages
                                       .map(
                                         (page) => DropdownMenuItem(
