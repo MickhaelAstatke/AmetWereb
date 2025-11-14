@@ -32,12 +32,52 @@ class LyricsProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
+  bool _needsMonthMetadataMigration = false;
+  bool get needsMonthMetadataMigration => _needsMonthMetadataMigration;
+
   List<LyricPage> get pages => _pages;
   LyricPage? get selectedPage => _selectedPage;
   LyricSection? get currentSection => _currentSection;
   AudioPlayer get audioPlayer => _audioPlayer;
   Duration get currentPosition => _currentPosition;
   PlayerState get playerState => _audioPlayer.state;
+
+  List<String> get sortedMonths {
+    final monthSet = <String>{};
+    for (final page in _pages) {
+      if (page.hasKnownMonth) {
+        monthSet.add(page.month);
+      }
+    }
+    final ordered = <String>[];
+    for (final month in LyricPage.ethiopianMonths) {
+      if (monthSet.remove(month)) {
+        ordered.add(month);
+      }
+    }
+    final remaining = monthSet.toList()..sort();
+    ordered.addAll(remaining);
+    if (_pages.any((page) => !page.hasKnownMonth)) {
+      ordered.add(LyricPage.unknownMonth);
+    }
+    return ordered;
+  }
+
+  Map<String, List<LyricPage>> get pagesByMonth {
+    final grouped = <String, List<LyricPage>>{};
+    for (final month in sortedMonths) {
+      grouped[month] = pagesForMonth(month);
+    }
+    return grouped;
+  }
+
+  List<LyricPage> pagesForMonth(String month) {
+    final filtered = month == LyricPage.unknownMonth
+        ? _pages.where((page) => !page.hasKnownMonth).toList()
+        : _pages.where((page) => page.month == month).toList();
+    filtered.sort(_comparePagesByCalendarPosition);
+    return filtered;
+  }
 
   Future<void> load() async {
     _isLoading = true;
@@ -53,8 +93,10 @@ class LyricsProvider extends ChangeNotifier {
               .map((dynamic e) =>
                   LyricPage.fromJson(e as Map<String, dynamic>))
               .toList();
+          await _performMonthMigrationIfNeeded();
         } else {
           _pages = await _repository.loadPages();
+          _refreshMonthMetadataFlag();
           await _persist();
         }
       } catch (error, stackTrace) {
@@ -63,6 +105,7 @@ class LyricsProvider extends ChangeNotifier {
           print('Failed to read persisted lyrics: $error\n$stackTrace');
         }
         _pages = await _repository.loadPages();
+        _refreshMonthMetadataFlag();
       }
       if (_pages.isNotEmpty) {
         selectPage(_pages.first);
@@ -85,6 +128,7 @@ class LyricsProvider extends ChangeNotifier {
   Future<void> addPage(LyricPage page) async {
     _pages = [..._pages, page];
     _selectedPage = page;
+    _refreshMonthMetadataFlag();
     await _persist();
     notifyListeners();
   }
@@ -109,6 +153,7 @@ class LyricsProvider extends ChangeNotifier {
         await _audioPlayer.stop();
       }
     }
+    _refreshMonthMetadataFlag();
     await _persist();
     notifyListeners();
   }
@@ -133,6 +178,7 @@ class LyricsProvider extends ChangeNotifier {
       _currentSection = null;
       await _audioPlayer.stop();
     }
+    _refreshMonthMetadataFlag();
     await _persist();
     notifyListeners();
   }
@@ -152,11 +198,7 @@ class LyricsProvider extends ChangeNotifier {
     if (!replaced) {
       updatedSections.add(section);
     }
-    final updatedPage = LyricPage(
-      id: page.id,
-      title: page.title,
-      sections: updatedSections,
-    );
+    final updatedPage = page.copyWith(sections: updatedSections);
     await updatePage(updatedPage);
     _currentSection = section;
     notifyListeners();
@@ -166,11 +208,7 @@ class LyricsProvider extends ChangeNotifier {
     final page = _pages.firstWhere((p) => p.id == pageId);
     final updatedSections =
         page.sections.where((section) => section.id != sectionId).toList();
-    final updatedPage = LyricPage(
-      id: page.id,
-      title: page.title,
-      sections: updatedSections,
-    );
+    final updatedPage = page.copyWith(sections: updatedSections);
     await updatePage(updatedPage);
     if (_currentSection?.id == sectionId) {
       _currentSection = null;
@@ -217,6 +255,24 @@ class LyricsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  int _comparePagesByCalendarPosition(LyricPage a, LyricPage b) {
+    if (!a.hasKnownMonth || !b.hasKnownMonth) {
+      return a.title.compareTo(b.title);
+    }
+    final dayA = a.day;
+    final dayB = b.day;
+    if (dayA != null && dayB != null && dayA != dayB) {
+      return dayA.compareTo(dayB);
+    }
+    if (dayA == null && dayB != null) {
+      return 1;
+    }
+    if (dayA != null && dayB == null) {
+      return -1;
+    }
+    return a.title.compareTo(b.title);
+  }
+
   void _bindAudioPlayer() {
     _positionSub = _audioPlayer.onPositionChanged.listen((position) {
       _currentPosition = position;
@@ -248,6 +304,48 @@ class LyricsProvider extends ChangeNotifier {
         print('Failed to persist lyrics: $error\n$stackTrace');
       }
     }
+  }
+
+  Future<void> _performMonthMigrationIfNeeded() async {
+    final requiresMigration =
+        _pages.any((page) => !page.hasKnownMonth);
+    if (!requiresMigration) {
+      _refreshMonthMetadataFlag();
+      return;
+    }
+    final seedPages = await _repository.loadPages();
+    final seedById = <String, LyricPage>{
+      for (final page in seedPages) page.id: page,
+    };
+    final migrated = <LyricPage>[];
+    var updated = false;
+    for (final page in _pages) {
+      if (page.hasKnownMonth) {
+        migrated.add(page);
+        continue;
+      }
+      final seed = seedById[page.id];
+      if (seed != null && seed.hasKnownMonth) {
+        migrated.add(page.copyWith(
+          month: seed.month,
+          day: seed.day,
+          icon: seed.icon,
+        ));
+        updated = true;
+      } else {
+        migrated.add(page);
+      }
+    }
+    _pages = migrated;
+    _refreshMonthMetadataFlag();
+    if (updated) {
+      await _persist();
+    }
+  }
+
+  void _refreshMonthMetadataFlag() {
+    _needsMonthMetadataMigration =
+        _pages.any((page) => !page.hasKnownMonth);
   }
 
   @override
