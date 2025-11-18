@@ -1,12 +1,14 @@
 import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:characters/characters.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../models/audio_metadata.dart';
+import '../models/glyph_annotation.dart';
 import '../models/lyric_line.dart';
 import '../models/lyric_page.dart';
 import '../models/lyric_section.dart';
@@ -971,12 +973,13 @@ class SectionEditorDialog extends StatefulWidget {
 
 class _SectionEditorDialogState extends State<SectionEditorDialog> {
   final _formKey = GlobalKey<FormState>();
+  final _lyricsFieldKey = GlobalKey<FormFieldState<void>>();
   late final TextEditingController _idController;
   late final TextEditingController _titleController;
   late final TextEditingController _noteController;
   late final TextEditingController _audioUrlController;
   late final TextEditingController _durationController;
-  late final TextEditingController _lyricsController;
+  final List<_LyricLineForm> _lineForms = [];
   late final AudioPlayer _previewPlayer;
 
   String? _pickedFilePath;
@@ -1003,13 +1006,7 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
           ? widget.section!.audio.duration.toString()
           : '60',
     );
-    _lyricsController = TextEditingController(
-      text: widget.section == null
-          ? ''
-          : widget.section!.lyrics
-              .map((line) => line.text)
-              .join('\n'),
-    );
+    _initializeLyricForms();
     _pickedFilePath = localPath;
     _initialStoredAudioPath = localPath;
     if (localPath != null) {
@@ -1025,9 +1022,184 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
     _noteController.dispose();
     _audioUrlController.dispose();
     _durationController.dispose();
-    _lyricsController.dispose();
+    for (final form in _lineForms) {
+      form.dispose();
+    }
     _previewPlayer.dispose();
     super.dispose();
+  }
+
+  void _initializeLyricForms() {
+    final lyrics = widget.section?.lyrics ?? const <LyricLine>[];
+    if (lyrics.isEmpty) {
+      _lineForms.add(_createLineForm());
+      return;
+    }
+    for (final line in lyrics) {
+      _lineForms.add(
+        _createLineForm(
+          text: line.displayText,
+          annotations: line.annotations,
+        ),
+      );
+    }
+    if (_lineForms.isEmpty) {
+      _lineForms.add(_createLineForm());
+    }
+  }
+
+  _LyricLineForm _createLineForm({
+    String text = '',
+    List<GlyphAnnotation> annotations = const [],
+  }) {
+    return _LyricLineForm(
+      text: text,
+      annotations: annotations,
+      onChanged: _handleLyricsChanged,
+    );
+  }
+
+  void _handleLyricsChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+    _lyricsFieldKey.currentState?.validate();
+  }
+
+  void _addLine() {
+    setState(() {
+      _lineForms.add(_createLineForm());
+    });
+    _lyricsFieldKey.currentState?.validate();
+  }
+
+  void _removeLine(int index) {
+    if (index < 0 || index >= _lineForms.length) {
+      return;
+    }
+    final removed = _lineForms.removeAt(index);
+    removed.dispose();
+    if (_lineForms.isEmpty) {
+      _lineForms.add(_createLineForm());
+    }
+    setState(() {});
+    _lyricsFieldKey.currentState?.validate();
+  }
+
+  Widget _buildLyricLineEditor(
+      ThemeData theme, _LyricLineForm form, int index) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.25),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withOpacity(0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Line ${index + 1}',
+                style: theme.textTheme.titleSmall,
+              ),
+              const SizedBox(width: 8),
+              if (form.lineController.text.trim().isEmpty)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.errorContainer.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Empty',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                  ),
+                ),
+              const Spacer(),
+              IconButton(
+                onPressed: _lineForms.length == 1
+                    ? null
+                    : () => _removeLine(index),
+                icon: const Icon(Icons.delete_outline),
+                color: theme.colorScheme.error,
+                tooltip: 'Remove line',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: form.lineController,
+            decoration: const InputDecoration(
+              labelText: 'Line text',
+              prefixIcon: Icon(Icons.short_text),
+            ),
+          ),
+          if (form.glyphEntries.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final entry in form.glyphEntries)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: _buildGlyphEditor(theme, entry),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGlyphEditor(ThemeData theme, _GlyphNoteEntry entry) {
+    if (entry.isWhitespace) {
+      return const SizedBox(width: 16);
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 56,
+          child: TextField(
+            controller: entry.noteController,
+            decoration: const InputDecoration(
+              hintText: 'Note',
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: theme.colorScheme.outlineVariant.withOpacity(0.4),
+            ),
+          ),
+          child: Text(
+            entry.glyph,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -1288,21 +1460,64 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _lyricsController,
-                    decoration: const InputDecoration(
-                      labelText: 'Lyric lines',
-                      helperText: 'Enter one line per row',
-                      prefixIcon: Icon(Icons.lyrics),
-                      alignLabelWithHint: true,
-                    ),
-                    maxLines: 6,
-                    validator: (value) {
-                      if (value == null ||
-                          value.split('\n').where((line) => line.trim().isNotEmpty).isEmpty) {
+                  FormField<void>(
+                    key: _lyricsFieldKey,
+                    validator: (_) {
+                      final hasLine = _lineForms.any(
+                        (form) => form.lineController.text.trim().isNotEmpty,
+                      );
+                      if (!hasLine) {
                         return 'Enter at least one lyric line';
                       }
                       return null;
+                    },
+                    builder: (state) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.lyrics,
+                                  color: theme.colorScheme.primary),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Lyric lines',
+                                style: theme.textTheme.titleMedium,
+                              ),
+                              const Spacer(),
+                              TextButton.icon(
+                                onPressed: _addLine,
+                                icon: const Icon(Icons.add),
+                                label: const Text('Add line'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Column(
+                            children: [
+                              for (var i = 0; i < _lineForms.length; i++)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 6),
+                                  child: _buildLyricLineEditor(
+                                    theme,
+                                    _lineForms[i],
+                                    i,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          if (state.hasError) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              state.errorText!,
+                              style: TextStyle(
+                                color: theme.colorScheme.error,
+                              ),
+                            ),
+                          ],
+                        ],
+                      );
                     },
                   ),
                   const SizedBox(height: 28),
@@ -1403,14 +1618,27 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
     }
 
     final duration = int.parse(_durationController.text.trim());
-    final lines = _lyricsController.text
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
     final lyricLines = <LyricLine>[];
-    for (var i = 0; i < lines.length; i++) {
-      lyricLines.add(LyricLine(order: i + 1, text: lines[i]));
+    for (final form in _lineForms) {
+      final rawText = form.lineController.text;
+      if (rawText.trim().isEmpty) {
+        continue;
+      }
+      final annotations = form.buildAnnotations();
+      lyricLines.add(
+        LyricLine(
+          order: lyricLines.length + 1,
+          text: rawText,
+          annotations: annotations,
+        ),
+      );
+    }
+    if (lyricLines.isEmpty) {
+      setState(() {
+        _isSaving = false;
+      });
+      _lyricsFieldKey.currentState?.validate();
+      return;
     }
     final section = LyricSection(
       id: _idController.text.trim(),
@@ -1429,5 +1657,113 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
       _isSaving = false;
     });
     Navigator.of(context).pop(section);
+  }
+}
+
+class _LyricLineForm {
+  _LyricLineForm({
+    String text = '',
+    List<GlyphAnnotation> annotations = const [],
+    required VoidCallback onChanged,
+  }) : _onChanged = onChanged {
+    final normalizedText = annotations.isNotEmpty
+        ? annotations.map((annotation) => annotation.glyph).join()
+        : text;
+    lineController = TextEditingController(text: normalizedText);
+    _lineListener = () {
+      _syncGlyphEntries(lineController.text);
+      _onChanged();
+    };
+    lineController.addListener(_lineListener);
+    if (annotations.isNotEmpty) {
+      for (final annotation in annotations) {
+        glyphEntries.add(
+          _GlyphNoteEntry(
+            glyph: annotation.glyph,
+            note: annotation.note,
+            onChanged: _onChanged,
+          ),
+        );
+      }
+    } else {
+      _syncGlyphEntries(lineController.text);
+    }
+  }
+
+  final VoidCallback _onChanged;
+  late final TextEditingController lineController;
+  late final VoidCallback _lineListener;
+  final List<_GlyphNoteEntry> glyphEntries = [];
+
+  void _syncGlyphEntries(String text) {
+    final characters = text.characters.toList();
+    while (glyphEntries.length > characters.length) {
+      glyphEntries.removeLast().dispose();
+    }
+    for (var i = 0; i < characters.length; i++) {
+      final glyph = characters[i];
+      if (i < glyphEntries.length) {
+        glyphEntries[i].updateGlyph(glyph);
+      } else {
+        glyphEntries.add(
+          _GlyphNoteEntry(
+            glyph: glyph,
+            onChanged: _onChanged,
+          ),
+        );
+      }
+    }
+  }
+
+  List<GlyphAnnotation> buildAnnotations() {
+    return glyphEntries.map((entry) => entry.toAnnotation()).toList();
+  }
+
+  void dispose() {
+    lineController.removeListener(_lineListener);
+    lineController.dispose();
+    for (final entry in glyphEntries) {
+      entry.dispose();
+    }
+  }
+}
+
+class _GlyphNoteEntry {
+  _GlyphNoteEntry({
+    required this.glyph,
+    String? note,
+    required VoidCallback onChanged,
+  })  : _onChanged = onChanged,
+        noteController = TextEditingController(text: note ?? '') {
+    noteController.addListener(_onChanged);
+  }
+
+  String glyph;
+  final VoidCallback _onChanged;
+  final TextEditingController noteController;
+
+  bool get isWhitespace => glyph.trim().isEmpty;
+
+  void updateGlyph(String value) {
+    if (glyph == value) {
+      return;
+    }
+    glyph = value;
+    if (noteController.text.isNotEmpty) {
+      noteController.text = '';
+    }
+  }
+
+  GlyphAnnotation toAnnotation() {
+    final noteText = noteController.text.trim();
+    return GlyphAnnotation(
+      glyph: glyph,
+      note: noteText.isEmpty ? null : noteText,
+    );
+  }
+
+  void dispose() {
+    noteController.removeListener(_onChanged);
+    noteController.dispose();
   }
 }

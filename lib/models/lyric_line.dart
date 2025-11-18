@@ -1,4 +1,7 @@
+import 'package:characters/characters.dart';
 import 'package:json_annotation/json_annotation.dart';
+
+import 'glyph_annotation.dart';
 
 part 'lyric_line.g.dart';
 
@@ -7,6 +10,7 @@ class LyricLine {
   const LyricLine({
     required this.order,
     required this.text,
+    this.annotations = const [],
   });
 
   factory LyricLine.fromJson(Map<String, dynamic> json) =>
@@ -14,6 +18,28 @@ class LyricLine {
 
   final int order;
   final String text;
+  @JsonKey(defaultValue: <GlyphAnnotation>[])
+  final List<GlyphAnnotation> annotations;
+
+  List<GlyphAnnotation> get glyphs {
+    if (annotations.isNotEmpty) {
+      return annotations;
+    }
+    return text.characters
+        .map((character) => GlyphAnnotation(glyph: character))
+        .toList(growable: false);
+  }
+
+  String get displayText {
+    if (annotations.isEmpty) {
+      return text;
+    }
+    final buffer = StringBuffer();
+    for (final annotation in annotations) {
+      buffer.write(annotation.glyph);
+    }
+    return buffer.toString();
+  }
 
   Map<String, dynamic> toJson() => _$LyricLineToJson(this);
 }
