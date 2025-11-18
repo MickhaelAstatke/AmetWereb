@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/lyric_page.dart';
 import '../models/lyric_section.dart';
 import '../providers/lyrics_provider.dart';
+import '../widgets/lyric_annotations_line.dart';
 import '../widgets/now_playing_bar.dart';
 import 'editor_page.dart';
 import 'player_page.dart';
@@ -626,16 +627,30 @@ class _LyricSectionTile extends HookWidget {
                                         ),
                                         const SizedBox(width: 12),
                                         Expanded(
-                                          child: Text(
-                                            line.text,
-                                            style:
+                                          child: LyricAnnotationsLine(
+                                            line: line,
+                                            baseStyle:
                                                 theme.textTheme.bodyMedium?.copyWith(
+                                                      color: isActive
+                                                          ? Colors
+                                                              .white
+                                                              .withOpacity(0.85)
+                                                          : theme.colorScheme
+                                                              .onSurface
+                                                              .withOpacity(0.8),
+                                                      height: 1.5,
+                                                    ) ??
+                                                    const TextStyle(),
+                                            noteStyle: theme
+                                                .textTheme.labelSmall
+                                                ?.copyWith(
                                               color: isActive
-                                                  ? Colors.white.withOpacity(0.85)
-                                                  : theme.colorScheme.onSurface
-                                                      .withOpacity(0.8),
-                                              height: 1.5,
+                                                  ? Colors.white
+                                                      .withOpacity(0.75)
+                                                  : theme.colorScheme
+                                                      .onSurfaceVariant,
                                             ),
+                                            glyphSpacing: 10,
                                           ),
                                         ),
                                       ],

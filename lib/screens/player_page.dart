@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/lyrics_provider.dart';
+import '../widgets/lyric_annotations_line.dart';
 
 class PlayerPage extends StatelessWidget {
   const PlayerPage({super.key});
@@ -278,10 +279,20 @@ class PlayerPage extends StatelessWidget {
                                               ),
                                               const SizedBox(width: 16),
                                               Expanded(
-                                                child: Text(
-                                                  line.text,
-                                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                                    height: 1.6,
+                                                child: LyricAnnotationsLine(
+                                                  line: line,
+                                                  baseStyle: theme
+                                                          .textTheme.bodyLarge
+                                                          ?.copyWith(
+                                                            height: 1.6,
+                                                          ) ??
+                                                      const TextStyle(),
+                                                  noteStyle: theme
+                                                      .textTheme.labelSmall
+                                                      ?.copyWith(
+                                                    color: theme
+                                                        .colorScheme
+                                                        .secondary,
                                                   ),
                                                 ),
                                               ),

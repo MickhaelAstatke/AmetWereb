@@ -18,11 +18,13 @@
           "lyrics": [
             {
               "order": 1,
-              "text": "When the sun retreats behind the hill"
+              "text": "When the sun retreats behind the hill",
+              "annotations": []
             },
             {
               "order": 2,
-              "text": "We gather close, our hearts made still"
+              "text": "We gather close, our hearts made still",
+              "annotations": []
             }
           ]
         },
@@ -37,11 +39,13 @@
           "lyrics": [
             {
               "order": 1,
-              "text": "Lift your voice and let it soar"
+              "text": "Lift your voice and let it soar",
+              "annotations": []
             },
             {
               "order": 2,
-              "text": "Echo love forevermore"
+              "text": "Echo love forevermore",
+              "annotations": []
             }
           ]
         }
@@ -65,11 +69,13 @@
           "lyrics": [
             {
               "order": 1,
-              "text": "Wake with light, your spirit raise"
+              "text": "Wake with light, your spirit raise",
+              "annotations": []
             },
             {
               "order": 2,
-              "text": "Sing with joy the morning praise"
+              "text": "Sing with joy the morning praise",
+              "annotations": []
             }
           ]
         }

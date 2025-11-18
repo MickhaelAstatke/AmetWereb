@@ -89,6 +89,7 @@ class LyricsProvider extends ChangeNotifier {
         final file = await _storageFile();
         if (await file.exists()) {
           final raw = await file.readAsString();
+          final missingAnnotationsField = !raw.contains('"annotations"');
           final Map<String, dynamic> jsonMap =
               json.decode(raw) as Map<String, dynamic>;
           _pages = (jsonMap['pages'] as List<dynamic>)
@@ -96,6 +97,9 @@ class LyricsProvider extends ChangeNotifier {
                   LyricPage.fromJson(e as Map<String, dynamic>))
               .toList();
           await _performMonthMigrationIfNeeded();
+          if (missingAnnotationsField) {
+            await _persist();
+          }
         } else {
           _pages = await _repository.loadPages();
           _refreshMonthMetadataFlag();
