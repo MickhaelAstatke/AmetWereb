@@ -9,18 +9,22 @@ import 'package:path_provider/path_provider.dart';
 import '../models/lyric_page.dart';
 import '../models/lyric_section.dart';
 import '../services/lyrics_repository.dart';
+import '../services/cloud_sync_service.dart';
 
 class LyricsProvider extends ChangeNotifier {
   LyricsProvider({
     required LyricsRepository repository,
     AudioPlayer? audioPlayer,
+    CloudSyncService? cloudSyncService,
   })  : _repository = repository,
-        _audioPlayer = audioPlayer ?? AudioPlayer() {
+        _audioPlayer = audioPlayer ?? AudioPlayer(),
+        _cloudSync = cloudSyncService ?? CloudSyncService() {
     _bindAudioPlayer();
   }
 
   final LyricsRepository _repository;
   final AudioPlayer _audioPlayer;
+  final CloudSyncService _cloudSync;
 
   List<LyricPage> _pages = const [];
   LyricPage? _selectedPage;
@@ -28,6 +32,8 @@ class LyricsProvider extends ChangeNotifier {
   Duration _currentPosition = Duration.zero;
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<PlayerState>? _stateSub;
+
+  bool get _canPersistLocally => !kIsWeb;
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
@@ -83,29 +89,45 @@ class LyricsProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      try {
-        final file = await _storageFile();
-        if (await file.exists()) {
-          final raw = await file.readAsString();
-          final Map<String, dynamic> jsonMap =
-              json.decode(raw) as Map<String, dynamic>;
-          _pages = (jsonMap['pages'] as List<dynamic>)
-              .map((dynamic e) =>
-                  LyricPage.fromJson(e as Map<String, dynamic>))
-              .toList();
-          await _performMonthMigrationIfNeeded();
-        } else {
-          _pages = await _repository.loadPages();
-          _refreshMonthMetadataFlag();
-          await _persist();
+      var loaded = false;
+      final remotePages = await _tryLoadFromCloud();
+      if (remotePages != null && remotePages.isNotEmpty) {
+        _pages = remotePages;
+        _refreshMonthMetadataFlag();
+        loaded = true;
+        if (_canPersistLocally) {
+          await _persist(syncRemote: false);
         }
-      } catch (error, stackTrace) {
-        if (kDebugMode) {
-          // ignore: avoid_print
-          print('Failed to read persisted lyrics: $error\n$stackTrace');
+      }
+      if (!loaded && _canPersistLocally) {
+        try {
+          final file = await _storageFile();
+          if (await file.exists()) {
+            final raw = await file.readAsString();
+            final Map<String, dynamic> jsonMap =
+                json.decode(raw) as Map<String, dynamic>;
+            _pages = (jsonMap['pages'] as List<dynamic>)
+                .map((dynamic e) =>
+                    LyricPage.fromJson(e as Map<String, dynamic>))
+                .toList();
+            await _performMonthMigrationIfNeeded();
+            loaded = true;
+          }
+        } catch (error, stackTrace) {
+          if (kDebugMode) {
+            // ignore: avoid_print
+            print('Failed to read persisted lyrics: $error\n$stackTrace');
+          }
         }
+      }
+      if (!loaded) {
         _pages = await _repository.loadPages();
         _refreshMonthMetadataFlag();
+        if (_canPersistLocally) {
+          await _persist();
+        } else {
+          await _syncToCloud();
+        }
       }
       if (_pages.isNotEmpty) {
         selectPage(_pages.first);
@@ -286,23 +308,60 @@ class LyricsProvider extends ChangeNotifier {
     });
   }
 
+  Future<List<LyricPage>?> _tryLoadFromCloud() async {
+    if (!_cloudSync.isConfigured) {
+      return null;
+    }
+    try {
+      return await _cloudSync.downloadPages();
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print('Failed to fetch lyrics from cloud: $error\n$stackTrace');
+      }
+      return null;
+    }
+  }
+
+  Future<void> _syncToCloud() async {
+    if (!_cloudSync.isConfigured) {
+      return;
+    }
+    try {
+      await _cloudSync.uploadPages(_pages);
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print('Failed to upload lyrics: $error\n$stackTrace');
+      }
+    }
+  }
+
   Future<File> _storageFile() async {
+    if (!_canPersistLocally) {
+      throw UnsupportedError('Local persistence is not available on web.');
+    }
     final directory = await getApplicationDocumentsDirectory();
     return File('${directory.path}/lyrics.json');
   }
 
-  Future<void> _persist() async {
-    try {
-      final file = await _storageFile();
-      final data = {
-        'pages': _pages.map((page) => page.toJson()).toList(),
-      };
-      await file.writeAsString(json.encode(data));
-    } catch (error, stackTrace) {
-      if (kDebugMode) {
-        // ignore: avoid_print
-        print('Failed to persist lyrics: $error\n$stackTrace');
+  Future<void> _persist({bool syncRemote = true}) async {
+    if (_canPersistLocally) {
+      try {
+        final file = await _storageFile();
+        final data = {
+          'pages': _pages.map((page) => page.toJson()).toList(),
+        };
+        await file.writeAsString(json.encode(data));
+      } catch (error, stackTrace) {
+        if (kDebugMode) {
+          // ignore: avoid_print
+          print('Failed to persist lyrics: $error\n$stackTrace');
+        }
       }
+    }
+    if (syncRemote) {
+      await _syncToCloud();
     }
   }
 

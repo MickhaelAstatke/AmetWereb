@@ -152,98 +152,147 @@ class AppTheme {
   }
 
   static TextTheme _buildTextTheme(ColorScheme colorScheme) {
-    return GoogleFonts.interTextTheme(
-      TextTheme(
-        displayLarge: GoogleFonts.plusJakartaSans(
-          fontSize: 57,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.5,
-          height: 1.1,
-        ),
-        displayMedium: GoogleFonts.plusJakartaSans(
-          fontSize: 45,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.5,
-          height: 1.15,
-        ),
-        displaySmall: GoogleFonts.plusJakartaSans(
-          fontSize: 36,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.25,
-          height: 1.2,
-        ),
-        headlineLarge: GoogleFonts.plusJakartaSans(
-          fontSize: 32,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.25,
-          height: 1.25,
-        ),
-        headlineMedium: GoogleFonts.plusJakartaSans(
-          fontSize: 28,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0,
-          height: 1.3,
-        ),
-        headlineSmall: GoogleFonts.plusJakartaSans(
-          fontSize: 24,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0,
-          height: 1.35,
-        ),
-        titleLarge: GoogleFonts.inter(
-          fontSize: 22,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0,
-          height: 1.4,
-        ),
-        titleMedium: GoogleFonts.inter(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.15,
-          height: 1.45,
-        ),
-        titleSmall: GoogleFonts.inter(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.1,
-          height: 1.45,
-        ),
-        bodyLarge: GoogleFonts.inter(
-          fontSize: 16,
-          fontWeight: FontWeight.w400,
-          letterSpacing: 0.15,
-          height: 1.6,
-        ),
-        bodyMedium: GoogleFonts.inter(
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
-          letterSpacing: 0.25,
-          height: 1.6,
-        ),
-        bodySmall: GoogleFonts.inter(
-          fontSize: 12,
-          fontWeight: FontWeight.w400,
-          letterSpacing: 0.4,
-          height: 1.5,
-        ),
-        labelLarge: GoogleFonts.inter(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
-          height: 1.4,
-        ),
-        labelMedium: GoogleFonts.inter(
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-          letterSpacing: 0.5,
-          height: 1.35,
-        ),
-        labelSmall: GoogleFonts.inter(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-          letterSpacing: 0.5,
-          height: 1.3,
-        ),
+    List<String> _uniqueFamilies(List<String?> families) {
+      final seen = <String>{};
+      final result = <String>[];
+      for (final family in families) {
+        if (family != null && seen.add(family)) {
+          result.add(family);
+        }
+      }
+      return result;
+    }
+
+    final ethiopicFamily = GoogleFonts.notoSansEthiopic().fontFamily;
+    final latinFallbacks = _uniqueFamilies([
+      GoogleFonts.inter().fontFamily,
+      GoogleFonts.plusJakartaSans().fontFamily,
+    ]);
+    final displayFallbacks = _uniqueFamilies([
+      ethiopicFamily,
+      ...latinFallbacks,
+    ]);
+
+    TextStyle _notoSans({
+      required double fontSize,
+      required FontWeight fontWeight,
+      double? letterSpacing,
+      double? height,
+    }) {
+      return GoogleFonts.notoSansEthiopic(
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        letterSpacing: letterSpacing,
+        height: height,
+        fontFamilyFallback: latinFallbacks,
+      );
+    }
+
+    TextStyle _jakartaSans({
+      required double fontSize,
+      required FontWeight fontWeight,
+      double? letterSpacing,
+      double? height,
+    }) {
+      return GoogleFonts.plusJakartaSans(
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        letterSpacing: letterSpacing,
+        height: height,
+        fontFamilyFallback: displayFallbacks,
+      );
+    }
+
+    return TextTheme(
+      displayLarge: _jakartaSans(
+        fontSize: 57,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.5,
+        height: 1.1,
+      ),
+      displayMedium: _jakartaSans(
+        fontSize: 45,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.5,
+        height: 1.15,
+      ),
+      displaySmall: _jakartaSans(
+        fontSize: 36,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.25,
+        height: 1.2,
+      ),
+      headlineLarge: _jakartaSans(
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.25,
+        height: 1.25,
+      ),
+      headlineMedium: _jakartaSans(
+        fontSize: 28,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0,
+        height: 1.3,
+      ),
+      headlineSmall: _jakartaSans(
+        fontSize: 24,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0,
+        height: 1.35,
+      ),
+      titleLarge: _notoSans(
+        fontSize: 22,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0,
+        height: 1.4,
+      ),
+      titleMedium: _notoSans(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.15,
+        height: 1.45,
+      ),
+      titleSmall: _notoSans(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.1,
+        height: 1.45,
+      ),
+      bodyLarge: _notoSans(
+        fontSize: 16,
+        fontWeight: FontWeight.w400,
+        letterSpacing: 0.15,
+        height: 1.6,
+      ),
+      bodyMedium: _notoSans(
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+        letterSpacing: 0.25,
+        height: 1.6,
+      ),
+      bodySmall: _notoSans(
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        letterSpacing: 0.4,
+        height: 1.5,
+      ),
+      labelLarge: _notoSans(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.5,
+        height: 1.4,
+      ),
+      labelMedium: _notoSans(
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.5,
+        height: 1.35,
+      ),
+      labelSmall: _notoSans(
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.5,
+        height: 1.3,
       ),
     );
   }

@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 
 import '../models/lyric_section.dart';
 import '../providers/lyrics_provider.dart';
+import '../services/app_access.dart';
+import '../widgets/lyric_glyph_line.dart';
 import '../widgets/now_playing_bar.dart';
 import 'editor_page.dart';
 import 'player_page.dart';
@@ -44,24 +46,26 @@ class HomePage extends HookWidget {
               ],
             ),
             actions: [
-              IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(12),
+              if (AppAccess.canEdit) ...[
+                IconButton(
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.edit_note,
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    ),
                   ),
-                  child: Icon(
-                    Icons.edit_note,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  tooltip: 'Manage pages',
+                  onPressed: () => Navigator.of(context).pushNamed(
+                    EditorPage.routeName,
                   ),
                 ),
-                tooltip: 'Manage pages',
-                onPressed: () => Navigator.of(context).pushNamed(
-                  EditorPage.routeName,
-                ),
-              ),
-              const SizedBox(width: 8),
+                const SizedBox(width: 8),
+              ],
               IconButton(
                 icon: Container(
                   padding: const EdgeInsets.all(8),
@@ -204,6 +208,7 @@ class HomePage extends HookWidget {
                                     ),
                                   ),
                                   dropdownColor: Theme.of(context).colorScheme.surface,
+                                  style: Theme.of(context).textTheme.titleMedium,
                                   items: provider.pages
                                       .map(
                                         (page) => DropdownMenuItem(
@@ -506,47 +511,38 @@ class _LyricSectionTile extends HookWidget {
                             ...section.lyrics.take(3).map(
                                   (line) => Padding(
                                     padding:
-                                        const EdgeInsets.symmetric(vertical: 4),
-                                    child: Row(
+                                        const EdgeInsets.symmetric(vertical: 6),
+                                    child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Container(
-                                          width: 28,
-                                          height: 28,
-                                          alignment: Alignment.center,
-                                          decoration: BoxDecoration(
+                                        Text(
+                                          'Line ${line.order.toString().padLeft(2, '0')}',
+                                          style: theme.textTheme.labelSmall?.copyWith(
                                             color: isActive
-                                                ? Colors.white.withOpacity(0.15)
-                                                : theme.colorScheme.primaryContainer
-                                                    .withOpacity(0.5),
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                          child: Text(
-                                            '${line.order}',
-                                            style: theme.textTheme.labelSmall
-                                                ?.copyWith(
-                                              color: isActive
-                                                  ? Colors.white
-                                                  : theme.colorScheme
-                                                      .onPrimaryContainer,
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                                                ? Colors.white.withOpacity(0.8)
+                                                : theme.colorScheme
+                                                    .onSurfaceVariant,
+                                            letterSpacing: 0.8,
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Text(
-                                            line.text,
-                                            style:
-                                                theme.textTheme.bodyMedium?.copyWith(
-                                              color: isActive
-                                                  ? Colors.white.withOpacity(0.85)
-                                                  : theme.colorScheme.onSurface
-                                                      .withOpacity(0.8),
-                                              height: 1.5,
-                                            ),
+                                        const SizedBox(height: 6),
+                                        LyricGlyphLine(
+                                          line: line,
+                                          glyphStyle: theme.textTheme.titleMedium
+                                              ?.copyWith(
+                                            color: isActive
+                                                ? Colors.white
+                                                : theme.colorScheme.onSurface,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: 0.5,
+                                          ),
+                                          noteStyle: theme.textTheme.bodySmall?.copyWith(
+                                            color: isActive
+                                                ? Colors.white.withOpacity(0.9)
+                                                : theme.colorScheme
+                                                    .primary,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
                                       ],
