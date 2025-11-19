@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../models/lyric_page.dart';
 import '../models/lyric_section.dart';
+import '../providers/auth_provider.dart';
 import '../providers/lyrics_provider.dart';
 import '../widgets/lyric_annotations_line.dart';
 import '../widgets/now_playing_bar.dart';
@@ -20,6 +21,7 @@ class HomePage extends HookWidget {
   Widget build(BuildContext context) {
     return Consumer<LyricsProvider>(
       builder: (context, provider, _) {
+        final canEdit = context.watch<AuthProvider>().canEdit;
         final months = provider.sortedMonths;
         final selectedMonth = provider.selectedMonth;
         final dropdownValue =
@@ -90,41 +92,31 @@ class HomePage extends HookWidget {
                 icon: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Theme.of(context).colorScheme.primary,
-                        Theme.of(context).colorScheme.tertiary,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.present_to_all,
-                    color: Colors.white,
-                  ),
-                ),
-                tooltip: 'Open presentation view',
-                onPressed: () => Navigator.of(context).pushNamed(
-                  PresentationPage.routeName,
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primaryContainer
+                        .withOpacity(canEdit ? 1 : 0.4),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     Icons.edit_note,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onPrimaryContainer
+                        .withOpacity(canEdit ? 1 : 0.4),
                   ),
                 ),
-                tooltip: 'Manage pages',
-                onPressed: () => Navigator.of(context).pushNamed(
-                  EditorPage.routeName,
-                ),
+                tooltip:
+                    canEdit ? 'Manage pages' : 'You do not have permission to edit',
+                onPressed: canEdit
+                    ? () {
+                        assert(canEdit,
+                            'An edit role is required before opening the editor.');
+                        Navigator.of(context).pushNamed(
+                          EditorPage.routeName,
+                        );
+                      }
+                    : null,
               ),
               const SizedBox(width: 8),
               IconButton(
