@@ -5,6 +5,7 @@ import 'providers/lyrics_provider.dart';
 import 'screens/editor_page.dart';
 import 'screens/home_page.dart';
 import 'screens/player_page.dart';
+import 'services/lyrics_remote_api.dart';
 import 'services/lyrics_repository.dart';
 import 'theme/app_theme.dart';
 
@@ -20,7 +21,11 @@ class LyricsApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => LyricsProvider(repository: LyricsRepository())..load(),
+          create: (_) => LyricsProvider(
+            repository: LyricsRepository(
+              remoteApi: LyricsRemoteApi(),
+            ),
+          )..load(),
         ),
       ],
       child: MaterialApp(

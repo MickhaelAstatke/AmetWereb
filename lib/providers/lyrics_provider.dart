@@ -6,6 +6,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../models/audio_metadata.dart';
 import '../models/lyric_page.dart';
 import '../models/lyric_section.dart';
 import '../services/lyrics_repository.dart';
@@ -85,6 +86,8 @@ class LyricsProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
+      List<LyricPage>? cachedPages;
+      var shouldRewriteCache = false;
       try {
         final file = await _storageFile();
         if (await file.exists()) {
@@ -97,21 +100,40 @@ class LyricsProvider extends ChangeNotifier {
                   LyricPage.fromJson(e as Map<String, dynamic>))
               .toList();
           await _performMonthMigrationIfNeeded();
-          if (missingAnnotationsField) {
-            await _persist();
-          }
-        } else {
-          _pages = await _repository.loadPages();
-          _refreshMonthMetadataFlag();
-          await _persist();
+          cachedPages = List<LyricPage>.from(_pages);
+          shouldRewriteCache = missingAnnotationsField;
         }
       } catch (error, stackTrace) {
         if (kDebugMode) {
           // ignore: avoid_print
           print('Failed to read persisted lyrics: $error\n$stackTrace');
         }
-        _pages = await _repository.loadPages();
+      }
+
+      List<LyricPage>? remotePages;
+      try {
+        remotePages = await _repository.loadPages();
+      } catch (error, stackTrace) {
+        if (kDebugMode) {
+          // ignore: avoid_print
+          print('Failed to fetch remote lyrics: $error\n$stackTrace');
+        }
+      }
+
+      if (remotePages != null && remotePages.isNotEmpty) {
+        _pages = remotePages;
         _refreshMonthMetadataFlag();
+        await _writeCache();
+      } else if (cachedPages != null && cachedPages.isNotEmpty) {
+        _pages = cachedPages;
+        _refreshMonthMetadataFlag();
+        if (shouldRewriteCache) {
+          await _writeCache();
+        }
+      } else {
+        _pages = await _repository.loadSeedPages();
+        _refreshMonthMetadataFlag();
+        await _writeCache();
       }
       if (_pages.isNotEmpty) {
         selectPage(_pages.first);
@@ -298,6 +320,18 @@ class LyricsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<AudioMetadata> uploadSectionAudio(
+    File file, {
+    required String pageId,
+    required String sectionId,
+  }) {
+    return _repository.uploadAudio(
+      file,
+      pageId: pageId,
+      sectionId: sectionId,
+    );
+  }
+
   Future<void> playSection(LyricSection section) async {
     _currentSection = section;
     await _audioPlayer.stop();
@@ -394,17 +428,14 @@ class LyricsProvider extends ChangeNotifier {
 
   Future<void> _persist() async {
     try {
-      final file = await _storageFile();
-      final data = {
-        'pages': _pages.map((page) => page.toJson()).toList(),
-      };
-      await file.writeAsString(json.encode(data));
+      await _repository.savePages(_pages);
     } catch (error, stackTrace) {
       if (kDebugMode) {
         // ignore: avoid_print
-        print('Failed to persist lyrics: $error\n$stackTrace');
+        print('Failed to sync lyrics remotely: $error\n$stackTrace');
       }
     }
+    await _writeCache();
   }
 
   Future<void> _performMonthMigrationIfNeeded() async {
@@ -414,7 +445,7 @@ class LyricsProvider extends ChangeNotifier {
       _refreshMonthMetadataFlag();
       return;
     }
-    final seedPages = await _repository.loadPages();
+    final seedPages = await _repository.loadSeedPages();
     final seedById = <String, LyricPage>{
       for (final page in seedPages) page.id: page,
     };
@@ -440,13 +471,28 @@ class LyricsProvider extends ChangeNotifier {
     _pages = migrated;
     _refreshMonthMetadataFlag();
     if (updated) {
-      await _persist();
+      await _writeCache();
     }
   }
 
   void _refreshMonthMetadataFlag() {
     _needsMonthMetadataMigration =
         _pages.any((page) => !page.hasKnownMonth);
+  }
+
+  Future<void> _writeCache() async {
+    try {
+      final file = await _storageFile();
+      final data = {
+        'pages': _pages.map((page) => page.toJson()).toList(),
+      };
+      await file.writeAsString(json.encode(data));
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print('Failed to persist lyrics cache: $error\n$stackTrace');
+      }
+    }
   }
 
   @override
