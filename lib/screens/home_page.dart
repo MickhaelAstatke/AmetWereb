@@ -612,33 +612,19 @@ class _LyricSectionTile extends HookWidget {
                             ...section.lyrics.take(3).map(
                                   (line) => Padding(
                                     padding:
-                                        const EdgeInsets.symmetric(vertical: 4),
-                                    child: Row(
+                                        const EdgeInsets.symmetric(vertical: 6),
+                                    child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Container(
-                                          width: 28,
-                                          height: 28,
-                                          alignment: Alignment.center,
-                                          decoration: BoxDecoration(
+                                        Text(
+                                          'Line ${line.order.toString().padLeft(2, '0')}',
+                                          style: theme.textTheme.labelSmall?.copyWith(
                                             color: isActive
-                                                ? Colors.white.withOpacity(0.15)
-                                                : theme.colorScheme.primaryContainer
-                                                    .withOpacity(0.5),
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                          child: Text(
-                                            '${line.order}',
-                                            style: theme.textTheme.labelSmall
-                                                ?.copyWith(
-                                              color: isActive
-                                                  ? Colors.white
-                                                  : theme.colorScheme
-                                                      .onPrimaryContainer,
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                                                ? Colors.white.withOpacity(0.8)
+                                                : theme.colorScheme
+                                                    .onSurfaceVariant,
+                                            letterSpacing: 0.8,
                                           ),
                                         ),
                                         const SizedBox(width: 12),

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
+import '../models/glyph_annotation.dart';
 import '../models/audio_metadata.dart';
 import '../models/glyph_annotation.dart';
 import '../models/lyric_line.dart';
@@ -224,6 +225,9 @@ class _EditorPageState extends State<EditorPage> {
     final theme = Theme.of(context);
     return Consumer<LyricsProvider>(
       builder: (context, provider, _) {
+        if (!AppAccess.canEdit) {
+          return const _EditorLockedView();
+        }
         LyricPage? selectedPage;
         if (_isExistingPage) {
           try {
@@ -999,6 +1003,50 @@ class _EditorPageState extends State<EditorPage> {
         ),
       );
     }
+  }
+}
+
+class _EditorLockedView extends StatelessWidget {
+  const _EditorLockedView();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Manage Library'),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.lock_outline,
+                size: 64,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Editing restricted',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'This build is running in viewer mode. Relaunch the app with '
+                "APP_ROLE=editor to access the management tools.",
+                style: theme.textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

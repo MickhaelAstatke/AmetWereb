@@ -15,7 +15,8 @@ LyricLine _$LyricLineFromJson(Map<String, dynamic> json) => LyricLine(
           const [],
     );
 
-Map<String, dynamic> _$LyricLineToJson(LyricLine instance) => <String, dynamic>{
+Map<String, dynamic> _$LyricLineToJson(LyricLine instance) =>
+    <String, dynamic>{
       'order': instance.order,
       'text': instance.text,
       'annotations': instance.annotations.map((e) => e.toJson()).toList(),
