@@ -10,11 +10,12 @@ import '../widgets/lyric_annotations_line.dart';
 import '../widgets/now_playing_bar.dart';
 import 'editor_page.dart';
 import 'player_page.dart';
+import 'presentation_page.dart';
 
 class HomePage extends HookWidget {
   const HomePage({super.key});
 
-  static const routeName = '/';
+  static const routeName = '/manage';
 
   @override
   Widget build(BuildContext context) {

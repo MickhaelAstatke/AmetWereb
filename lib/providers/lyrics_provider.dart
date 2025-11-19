@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/lyric_page.dart';
 import '../models/lyric_section.dart';
 import '../services/lyrics_repository.dart';
+import '../view_models/presentation_view_models.dart';
 
 class LyricsProvider extends ChangeNotifier {
   LyricsProvider({
@@ -71,6 +72,14 @@ class LyricsProvider extends ChangeNotifier {
       grouped[month] = pagesForMonth(month);
     }
     return grouped;
+  }
+
+  PresentationPageViewModel? get presentationViewModel {
+    final page = _selectedPage;
+    if (page == null) {
+      return null;
+    }
+    return PresentationViewModelFactory.fromPage(page);
   }
 
   List<LyricPage> pagesForMonth(String month) {

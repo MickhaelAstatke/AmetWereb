@@ -258,6 +258,26 @@ class _EditorPageState extends State<EditorPage> {
                 const Text('Manage Library'),
               ],
             ),
+            actions: [
+              IconButton(
+                tooltip: 'Preview presentation',
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.present_to_all,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+                onPressed: () => Navigator.of(context).pushNamed(
+                  PresentationPage.routeName,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
           ),
           body: Padding(
             padding: const EdgeInsets.all(16),
