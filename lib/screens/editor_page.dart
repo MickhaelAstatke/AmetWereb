@@ -12,7 +12,9 @@ import '../models/glyph_annotation.dart';
 import '../models/lyric_line.dart';
 import '../models/lyric_page.dart';
 import '../models/lyric_section.dart';
+import '../providers/auth_provider.dart';
 import '../providers/lyrics_provider.dart';
+import 'home_page.dart';
 
 class EditorPage extends StatefulWidget {
   const EditorPage({super.key});
@@ -34,6 +36,7 @@ class _EditorPageState extends State<EditorPage> {
 
   List<LyricSection> _sections = [];
   bool _isExistingPage = false;
+  bool _authChecked = false;
 
   @override
   void dispose() {
@@ -75,6 +78,24 @@ class _EditorPageState extends State<EditorPage> {
       _isLoadingDuration = false;
       _audioValidationError = null;
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_authChecked) {
+      return;
+    }
+    _authChecked = true;
+    final auth = context.read<AuthProvider>();
+    if (!auth.canEdit) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        Navigator.of(context).pushReplacementNamed(HomePage.routeName);
+      });
+    }
   }
 
   Future<void> _loadDurationFromFile(String path) async {
@@ -196,6 +217,10 @@ class _EditorPageState extends State<EditorPage> {
 
   @override
   Widget build(BuildContext context) {
+    final canEdit = context.watch<AuthProvider>().canEdit;
+    if (!canEdit) {
+      return const SizedBox.shrink();
+    }
     final theme = Theme.of(context);
     return Consumer<LyricsProvider>(
       builder: (context, provider, _) {
