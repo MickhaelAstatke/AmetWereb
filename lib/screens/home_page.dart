@@ -9,11 +9,12 @@ import '../widgets/lyric_annotations_line.dart';
 import '../widgets/now_playing_bar.dart';
 import 'editor_page.dart';
 import 'player_page.dart';
+import 'presentation_page.dart';
 
 class HomePage extends HookWidget {
   const HomePage({super.key});
 
-  static const routeName = '/';
+  static const routeName = '/manage';
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +86,29 @@ class HomePage extends HookWidget {
               ],
             ),
             actions: [
+              IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Theme.of(context).colorScheme.primary,
+                        Theme.of(context).colorScheme.tertiary,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.present_to_all,
+                    color: Colors.white,
+                  ),
+                ),
+                tooltip: 'Open presentation view',
+                onPressed: () => Navigator.of(context).pushNamed(
+                  PresentationPage.routeName,
+                ),
+              ),
+              const SizedBox(width: 8),
               IconButton(
                 icon: Container(
                   padding: const EdgeInsets.all(8),
