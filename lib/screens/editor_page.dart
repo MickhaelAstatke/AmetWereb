@@ -1,15 +1,21 @@
+import 'dart:io';
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:characters/characters.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../models/glyph_annotation.dart';
 import '../models/audio_metadata.dart';
+import '../models/glyph_annotation.dart';
 import '../models/lyric_line.dart';
 import '../models/lyric_page.dart';
 import '../models/lyric_section.dart';
+import '../providers/auth_provider.dart';
 import '../providers/lyrics_provider.dart';
-import '../services/app_access.dart';
-import '../widgets/lyric_glyph_line.dart';
+import 'home_page.dart';
 
 class EditorPage extends StatefulWidget {
   const EditorPage({super.key});
@@ -31,6 +37,7 @@ class _EditorPageState extends State<EditorPage> {
 
   List<LyricSection> _sections = [];
   bool _isExistingPage = false;
+  bool _authChecked = false;
 
   @override
   void dispose() {
@@ -41,8 +48,180 @@ class _EditorPageState extends State<EditorPage> {
     super.dispose();
   }
 
+  Future<void> _pickAudioFile() async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.audio);
+    if (result == null) {
+      return;
+    }
+    final filePath = result.files.single.path;
+    if (filePath == null) {
+      setState(() {
+        _audioValidationError =
+            'Unable to access the selected file. Please try another audio.';
+      });
+      return;
+    }
+    setState(() {
+      _pickedFilePath = filePath;
+      _initialStoredAudioPath = null;
+      _pickedFileDuration = null;
+      _audioUrlController.clear();
+      _audioValidationError = null;
+    });
+    await _loadDurationFromFile(filePath);
+  }
+
+  void _clearPickedFile() {
+    setState(() {
+      _pickedFilePath = null;
+      _initialStoredAudioPath = null;
+      _pickedFileDuration = null;
+      _isLoadingDuration = false;
+      _audioValidationError = null;
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_authChecked) {
+      return;
+    }
+    _authChecked = true;
+    final auth = context.read<AuthProvider>();
+    if (!auth.canEdit) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        Navigator.of(context).pushReplacementNamed(HomePage.routeName);
+      });
+    }
+  }
+
+  Future<void> _loadDurationFromFile(String path) async {
+    setState(() {
+      _isLoadingDuration = true;
+    });
+    try {
+      await _previewPlayer.setSource(DeviceFileSource(path));
+      final duration = await _previewPlayer.getDuration();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _pickedFileDuration = duration;
+        if (duration != null) {
+          _durationController.text = duration.inSeconds.toString();
+        }
+        _audioValidationError = null;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _audioValidationError =
+            'Failed to analyze the selected audio file. Please ensure it plays correctly.';
+      });
+    } finally {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoadingDuration = false;
+      });
+    }
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} (${duration.inSeconds}s)';
+  }
+
+  String? _resolveLocalAudioPath(String value) {
+    if (value.isEmpty) {
+      return null;
+    }
+    final uri = Uri.tryParse(value);
+    if (uri != null && uri.scheme == 'file') {
+      return uri.toFilePath();
+    }
+    try {
+      final file = File(value);
+      if (file.isAbsolute) {
+        return value;
+      }
+    } catch (_) {
+      // ignore invalid paths
+    }
+    return null;
+  }
+
+  String _fileNameFromPath(String path) {
+    final normalized = path.replaceAll('\\', '/');
+    if (normalized.contains('/')) {
+      final parts = normalized.split('/');
+      if (parts.isNotEmpty) {
+        return parts.last;
+      }
+    }
+    final uri = Uri.tryParse(path);
+    if (uri != null && uri.pathSegments.isNotEmpty) {
+      return uri.pathSegments.last;
+    }
+    return path;
+  }
+
+  String _sanitizeFileName(String value) {
+    return value.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+  }
+
+  Future<String?> _persistSelectedFile() async {
+    final selectedPath = _pickedFilePath;
+    if (selectedPath == null) {
+      return null;
+    }
+    try {
+      final file = File(selectedPath);
+      if (_initialStoredAudioPath != null &&
+          _initialStoredAudioPath == selectedPath &&
+          await file.exists()) {
+        return selectedPath;
+      }
+      if (!await file.exists()) {
+        return null;
+      }
+      final docsDir = await getApplicationDocumentsDirectory();
+      final audioDir =
+          Directory('${docsDir.path}${Platform.pathSeparator}audio');
+      if (!await audioDir.exists()) {
+        await audioDir.create(recursive: true);
+      }
+      final sectionId = _idController.text.trim().isEmpty
+          ? 'section'
+          : _idController.text.trim();
+      final fileName = _sanitizeFileName(
+        '${widget.pageId}_$sectionId_${DateTime.now().millisecondsSinceEpoch}_${_fileNameFromPath(selectedPath)}',
+      );
+      final destinationPath =
+          '${audioDir.path}${Platform.pathSeparator}$fileName';
+      final copiedFile = await file.copy(destinationPath);
+      _initialStoredAudioPath = copiedFile.path;
+      _pickedFilePath = copiedFile.path;
+      return copiedFile.path;
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final canEdit = context.watch<AuthProvider>().canEdit;
+    if (!canEdit) {
+      return const SizedBox.shrink();
+    }
     final theme = Theme.of(context);
     return Consumer<LyricsProvider>(
       builder: (context, provider, _) {
@@ -83,6 +262,26 @@ class _EditorPageState extends State<EditorPage> {
                 const Text('Manage Library'),
               ],
             ),
+            actions: [
+              IconButton(
+                tooltip: 'Preview presentation',
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.present_to_all,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+                onPressed: () => Navigator.of(context).pushNamed(
+                  PresentationPage.routeName,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
           ),
           body: Padding(
             padding: const EdgeInsets.all(16),
@@ -867,34 +1066,45 @@ class SectionEditorDialog extends StatefulWidget {
 
 class _SectionEditorDialogState extends State<SectionEditorDialog> {
   final _formKey = GlobalKey<FormState>();
+  final _lyricsFieldKey = GlobalKey<FormFieldState<void>>();
   late final TextEditingController _idController;
   late final TextEditingController _titleController;
   late final TextEditingController _noteController;
   late final TextEditingController _audioUrlController;
   late final TextEditingController _durationController;
-  late final List<_EditableLyricLine> _lineEntries;
+  final List<_LyricLineForm> _lineForms = [];
+  late final AudioPlayer _previewPlayer;
+
+  String? _pickedFilePath;
+  String? _initialStoredAudioPath;
+  Duration? _pickedFileDuration;
+  bool _isLoadingDuration = false;
+  bool _isSaving = false;
+  String? _audioValidationError;
 
   @override
   void initState() {
     super.initState();
+    _previewPlayer = AudioPlayer();
+    final initialAudioUrl = widget.section?.audio.url ?? '';
+    final localPath = _resolveLocalAudioPath(initialAudioUrl);
     _idController = TextEditingController(text: widget.section?.id ?? '');
     _titleController = TextEditingController(text: widget.section?.title ?? '');
     _noteController = TextEditingController(text: widget.section?.note ?? '');
-    _audioUrlController =
-        TextEditingController(text: widget.section?.audio.url ?? '');
+    _audioUrlController = TextEditingController(
+      text: localPath == null ? initialAudioUrl : '',
+    );
     _durationController = TextEditingController(
       text: widget.section != null
           ? widget.section!.audio.duration.toString()
           : '60',
     );
-    final lyricLines = widget.section?.lyrics ?? const [];
-    if (lyricLines.isEmpty) {
-      _lineEntries = [_EditableLyricLine(order: 1)];
-    } else {
-      _lineEntries = [
-        for (final line in lyricLines)
-          _EditableLyricLine.fromLyric(line),
-      ];
+    _initializeLyricForms();
+    _pickedFilePath = localPath;
+    _initialStoredAudioPath = localPath;
+    if (localPath != null) {
+      _pickedFileDuration = Duration(seconds: widget.section!.audio.duration);
+      _loadDurationFromFile(localPath);
     }
   }
 
@@ -905,145 +1115,183 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
     _noteController.dispose();
     _audioUrlController.dispose();
     _durationController.dispose();
-    for (final line in _lineEntries) {
-      line.dispose();
+    for (final form in _lineForms) {
+      form.dispose();
     }
+    _previewPlayer.dispose();
     super.dispose();
+  }
+
+  void _initializeLyricForms() {
+    final lyrics = widget.section?.lyrics ?? const <LyricLine>[];
+    if (lyrics.isEmpty) {
+      _lineForms.add(_createLineForm());
+      return;
+    }
+    for (final line in lyrics) {
+      _lineForms.add(
+        _createLineForm(
+          text: line.displayText,
+          annotations: line.annotations,
+        ),
+      );
+    }
+    if (_lineForms.isEmpty) {
+      _lineForms.add(_createLineForm());
+    }
+  }
+
+  _LyricLineForm _createLineForm({
+    String text = '',
+    List<GlyphAnnotation> annotations = const [],
+  }) {
+    return _LyricLineForm(
+      text: text,
+      annotations: annotations,
+      onChanged: _handleLyricsChanged,
+    );
+  }
+
+  void _handleLyricsChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+    _lyricsFieldKey.currentState?.validate();
   }
 
   void _addLine() {
     setState(() {
-      _lineEntries.add(
-        _EditableLyricLine(order: _lineEntries.length + 1),
-      );
+      _lineForms.add(_createLineForm());
     });
+    _lyricsFieldKey.currentState?.validate();
   }
 
   void _removeLine(int index) {
-    if (_lineEntries.length == 1) {
+    if (index < 0 || index >= _lineForms.length) {
       return;
     }
-    setState(() {
-      final removed = _lineEntries.removeAt(index);
-      removed.dispose();
-      _reindexLines();
-    });
+    final removed = _lineForms.removeAt(index);
+    removed.dispose();
+    if (_lineForms.isEmpty) {
+      _lineForms.add(_createLineForm());
+    }
+    setState(() {});
+    _lyricsFieldKey.currentState?.validate();
   }
 
-  void _reindexLines() {
-    for (var i = 0; i < _lineEntries.length; i++) {
-      _lineEntries[i].order = i + 1;
-    }
-  }
-
-  Future<void> _editGlyphs(_EditableLyricLine line) async {
-    if (line.annotations.isEmpty) {
-      return;
-    }
-    final updated = await showModalBottomSheet<List<GlyphAnnotation>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _GlyphAnnotationSheet(line: line),
-    );
-    if (updated != null) {
-      setState(() {
-        line.replaceAnnotations(updated);
-      });
-    }
-  }
-
-  Widget _buildLyricLineCard(
-    BuildContext context,
-    _EditableLyricLine line,
-    int index,
-  ) {
-    final theme = Theme.of(context);
-    return ValueListenableBuilder<TextEditingValue>(
-      valueListenable: line.controller,
-      builder: (context, value, _) {
-        final hasContent = value.text.trim().isNotEmpty;
-        final noteCount = line.annotations
-            .where((glyph) => (glyph.note?.trim().isNotEmpty ?? false))
-            .length;
-        return Card(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(
-              color: theme.colorScheme.primary.withOpacity(0.1),
+  Widget _buildLyricLineEditor(
+      ThemeData theme, _LyricLineForm form, int index) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.25),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withOpacity(0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Line ${index + 1}',
+                style: theme.textTheme.titleSmall,
+              ),
+              const SizedBox(width: 8),
+              if (form.lineController.text.trim().isEmpty)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.errorContainer.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Empty',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                  ),
+                ),
+              const Spacer(),
+              IconButton(
+                onPressed: _lineForms.length == 1
+                    ? null
+                    : () => _removeLine(index),
+                icon: const Icon(Icons.delete_outline),
+                color: theme.colorScheme.error,
+                tooltip: 'Remove line',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: form.lineController,
+            decoration: const InputDecoration(
+              labelText: 'Line text',
+              prefixIcon: Icon(Icons.short_text),
             ),
           ),
-          elevation: 0,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextFormField(
-                  controller: line.controller,
-                  decoration: InputDecoration(
-                    labelText: 'Line ${index + 1}',
-                    prefixIcon: const Icon(Icons.lyrics),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Enter lyrics or remove this line';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    TextButton.icon(
-                      onPressed: hasContent ? () => _editGlyphs(line) : null,
-                      icon: const Icon(Icons.notes),
-                      label: const Text('Annotate letters'),
+          if (form.glyphEntries.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final entry in form.glyphEntries)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: _buildGlyphEditor(theme, entry),
                     ),
-                    if (noteCount > 0) ...[
-                      const SizedBox(width: 12),
-                      Chip(
-                        label: Text('$noteCount note${noteCount == 1 ? '' : 's'}'),
-                        backgroundColor:
-                            theme.colorScheme.secondaryContainer.withOpacity(0.4),
-                      ),
-                    ],
-                    const Spacer(),
-                    IconButton(
-                      tooltip: 'Remove line',
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: _lineEntries.length == 1
-                          ? null
-                          : () => _removeLine(index),
-                    ),
-                  ],
-                ),
-                if (noteCount > 0) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    'Preview',
-                    style: theme.textTheme.labelSmall,
-                  ),
-                  const SizedBox(height: 6),
-                  LyricGlyphLine(
-                    line: LyricLine(
-                      order: line.order,
-                      text: line.controller.text,
-                      annotations: List<GlyphAnnotation>.from(line.annotations),
-                    ),
-                    glyphStyle: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.colorScheme.onSurface,
-                    ),
-                    noteStyle: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
                 ],
-              ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGlyphEditor(ThemeData theme, _GlyphNoteEntry entry) {
+    if (entry.isWhitespace) {
+      return const SizedBox(width: 16);
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 56,
+          child: TextField(
+            controller: entry.noteController,
+            decoration: const InputDecoration(
+              hintText: 'Note',
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: theme.colorScheme.outlineVariant.withOpacity(0.4),
             ),
           ),
-        );
-      },
+          child: Text(
+            entry.glyph,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1152,19 +1400,141 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _audioUrlController,
-                    decoration: const InputDecoration(
-                      labelText: 'Audio asset or URL',
-                      helperText: 'Supports bundled assets or remote links',
-                      prefixIcon: Icon(Icons.audiotrack),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Provide an audio reference';
-                      }
-                      return null;
-                    },
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Audio source',
+                        style: theme.textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.folder_open),
+                              label: Text(
+                                _pickedFilePath == null
+                                    ? 'Browse local audio'
+                                    : 'Replace selected audio',
+                              ),
+                              onPressed: _pickAudioFile,
+                            ),
+                          ),
+                          if (_pickedFilePath != null)
+                            IconButton(
+                              tooltip: 'Remove selected file',
+                              onPressed: _clearPickedFile,
+                              icon: const Icon(Icons.close),
+                            ),
+                        ],
+                      ),
+                      if (_pickedFilePath != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.secondaryContainer
+                                .withOpacity(0.4),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: theme.colorScheme.outlineVariant,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.audiotrack,
+                                    color: theme.colorScheme.onSecondaryContainer,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _fileNameFromPath(_pickedFilePath!),
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              if (_isLoadingDuration)
+                                Row(
+                                  children: const [
+                                    SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text('Analyzing duration...'),
+                                  ],
+                                )
+                              else if (_pickedFileDuration != null)
+                                Text(
+                                  'Duration: ${_formatDuration(_pickedFileDuration!)}',
+                                  style: theme.textTheme.bodySmall,
+                                )
+                              else
+                                Text(
+                                  'Duration: Unknown — please confirm manually.',
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                              Text(
+                                'Location: ${_pickedFilePath!}',
+                                style: theme.textTheme.bodySmall,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'The file will be copied into the app library when saved.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSecondaryContainer
+                                      .withOpacity(0.7),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _audioUrlController,
+                        decoration: const InputDecoration(
+                          labelText: 'Audio asset or URL',
+                          helperText: 'Optional when a local file is selected',
+                          prefixIcon: Icon(Icons.link),
+                        ),
+                        onChanged: (_) {
+                          if (_audioValidationError != null) {
+                            setState(() {
+                              _audioValidationError = null;
+                            });
+                          }
+                        },
+                        validator: (value) {
+                          if (_pickedFilePath == null &&
+                              (value == null || value.trim().isEmpty)) {
+                            return 'Provide an audio reference or choose a file';
+                          }
+                          return null;
+                        },
+                      ),
+                      if (_audioValidationError != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _audioValidationError!,
+                          style: TextStyle(color: theme.colorScheme.error),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -1183,32 +1553,65 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Lyric lines',
-                      style: theme.textTheme.titleMedium,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemBuilder: (context, index) {
-                      final entry = _lineEntries[index];
-                      return _buildLyricLineCard(context, entry, index);
+                  FormField<void>(
+                    key: _lyricsFieldKey,
+                    validator: (_) {
+                      final hasLine = _lineForms.any(
+                        (form) => form.lineController.text.trim().isNotEmpty,
+                      );
+                      if (!hasLine) {
+                        return 'Enter at least one lyric line';
+                      }
+                      return null;
                     },
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemCount: _lineEntries.length,
-                  ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add line'),
-                      onPressed: _addLine,
-                    ),
+                    builder: (state) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.lyrics,
+                                  color: theme.colorScheme.primary),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Lyric lines',
+                                style: theme.textTheme.titleMedium,
+                              ),
+                              const Spacer(),
+                              TextButton.icon(
+                                onPressed: _addLine,
+                                icon: const Icon(Icons.add),
+                                label: const Text('Add line'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Column(
+                            children: [
+                              for (var i = 0; i < _lineForms.length; i++)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 6),
+                                  child: _buildLyricLineEditor(
+                                    theme,
+                                    _lineForms[i],
+                                    i,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          if (state.hasError) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              state.errorText!,
+                              style: TextStyle(
+                                color: theme.colorScheme.error,
+                              ),
+                            ),
+                          ],
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 28),
                   Row(
@@ -1238,14 +1641,25 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
                           ],
                         ),
                         child: ElevatedButton.icon(
-                          icon: const Icon(Icons.check),
-                          label: const Text('Save'),
+                          icon: _isSaving
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                )
+                              : const Icon(Icons.check),
+                          label: Text(_isSaving ? 'Saving...' : 'Save'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.transparent,
                             foregroundColor: Colors.white,
                             shadowColor: Colors.transparent,
                           ),
-                          onPressed: _submit,
+                          onPressed: _isSaving ? null : _submit,
                         ),
                       ),
                     ],
@@ -1259,32 +1673,64 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
     );
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    if (_isSaving) {
+      return;
+    }
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    if (_pickedFilePath == null &&
+        _audioUrlController.text.trim().isEmpty) {
+      setState(() {
+        _audioValidationError =
+            'Select a local audio file or provide an asset/URL reference.';
+      });
+      return;
+    }
+    setState(() {
+      _audioValidationError = null;
+      _isSaving = true;
+    });
+
+    var audioReference = _audioUrlController.text.trim();
+    if (_pickedFilePath != null) {
+      final storedPath = await _persistSelectedFile();
+      if (storedPath == null) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _audioValidationError =
+              'Unable to store the selected audio. Please try again.';
+          _isSaving = false;
+        });
+        return;
+      }
+      audioReference = storedPath;
+    }
+
     final duration = int.parse(_durationController.text.trim());
     final lyricLines = <LyricLine>[];
-    for (final entry in _lineEntries) {
-      final text = entry.controller.text.trim();
-      if (text.isEmpty) {
+    for (final form in _lineForms) {
+      final rawText = form.lineController.text;
+      if (rawText.trim().isEmpty) {
         continue;
       }
+      final annotations = form.buildAnnotations();
       lyricLines.add(
         LyricLine(
           order: lyricLines.length + 1,
-          text: text,
-          annotations: [
-            for (final glyph in entry.annotations)
-              GlyphAnnotation(base: glyph.base, note: glyph.note),
-          ],
+          text: rawText,
+          annotations: annotations,
         ),
       );
     }
     if (lyricLines.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add at least one lyric line before saving.')),
-      );
+      setState(() {
+        _isSaving = false;
+      });
+      _lyricsFieldKey.currentState?.validate();
       return;
     }
     final section = LyricSection(
@@ -1292,203 +1738,125 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
       title: _titleController.text.trim(),
       note: _noteController.text.trim(),
       audio: AudioMetadata(
-        url: _audioUrlController.text.trim(),
+        url: audioReference,
         duration: duration,
       ),
       lyrics: lyricLines,
     );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isSaving = false;
+    });
     Navigator.of(context).pop(section);
   }
 }
 
-class _GlyphAnnotationSheet extends StatefulWidget {
-  const _GlyphAnnotationSheet({required this.line});
-
-  final _EditableLyricLine line;
-
-  @override
-  State<_GlyphAnnotationSheet> createState() => _GlyphAnnotationSheetState();
-}
-
-class _GlyphAnnotationSheetState extends State<_GlyphAnnotationSheet> {
-  late final List<GlyphAnnotation> _glyphs;
-  late final List<TextEditingController> _noteControllers;
-
-  @override
-  void initState() {
-    super.initState();
-    _glyphs = [
-      for (final glyph in widget.line.annotations)
-        GlyphAnnotation(base: glyph.base, note: glyph.note),
-    ];
-    _noteControllers = [
-      for (final glyph in _glyphs)
-        TextEditingController(text: glyph.note ?? ''),
-    ];
-  }
-
-  @override
-  void dispose() {
-    for (final controller in _noteControllers) {
-      controller.dispose();
-    }
-    super.dispose();
-  }
-
-  void _save() {
-    final updated = <GlyphAnnotation>[];
-    for (var i = 0; i < _glyphs.length; i++) {
-      final noteText = _noteControllers[i].text.trim();
-      updated.add(
-        _glyphs[i].copyWith(note: noteText.isEmpty ? null : noteText),
-      );
-    }
-    Navigator.of(context).pop(updated);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return FractionallySizedBox(
-      heightFactor: 0.85,
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 16,
-          bottom: 24 + MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            children: [
-              Container(
-                width: 48,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.outlineVariant,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Annotate letters',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Add optional notes that will appear above individual glyphs.',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: _glyphs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final glyph = _glyphs[index];
-                    final label = glyph.base.trim().isEmpty ? '␣' : glyph.base;
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color:
-                                theme.colorScheme.primaryContainer.withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(
-                            label,
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: _noteControllers[index],
-                            decoration: InputDecoration(
-                              labelText: 'Note for "$label"',
-                              hintText: 'Optional guidance',
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: _save,
-                icon: const Icon(Icons.check),
-                label: const Text('Save notes'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EditableLyricLine {
-  _EditableLyricLine({
-    required this.order,
+class _LyricLineForm {
+  _LyricLineForm({
     String text = '',
-    List<GlyphAnnotation>? annotations,
-  })  : controller = TextEditingController(text: text),
-        _annotations = List<GlyphAnnotation>.from(annotations ?? const []) {
-    _listener = _onTextChanged;
-    controller.addListener(_listener);
-    _syncAnnotationsWithText();
-  }
-
-  factory _EditableLyricLine.fromLyric(LyricLine line) {
-    return _EditableLyricLine(
-      order: line.order,
-      text: line.text,
-      annotations: line.annotations.isNotEmpty ? line.annotations : line.glyphs,
-    );
-  }
-
-  final TextEditingController controller;
-  int order;
-  late final VoidCallback _listener;
-  List<GlyphAnnotation> _annotations;
-
-  List<GlyphAnnotation> get annotations => _annotations;
-
-  void replaceAnnotations(List<GlyphAnnotation> next) {
-    _annotations = List<GlyphAnnotation>.from(next);
-  }
-
-  void _onTextChanged() => _syncAnnotationsWithText();
-
-  void _syncAnnotationsWithText() {
-    final charactersList = controller.text.characters.toList();
-    final existing = _annotations;
-    final updated = <GlyphAnnotation>[];
-    for (var i = 0; i < charactersList.length; i++) {
-      final note = i < existing.length ? existing[i].note : null;
-      updated.add(GlyphAnnotation(base: charactersList[i], note: note));
+    List<GlyphAnnotation> annotations = const [],
+    required VoidCallback onChanged,
+  }) : _onChanged = onChanged {
+    final normalizedText = annotations.isNotEmpty
+        ? annotations.map((annotation) => annotation.glyph).join()
+        : text;
+    lineController = TextEditingController(text: normalizedText);
+    _lineListener = () {
+      _syncGlyphEntries(lineController.text);
+      _onChanged();
+    };
+    lineController.addListener(_lineListener);
+    if (annotations.isNotEmpty) {
+      for (final annotation in annotations) {
+        glyphEntries.add(
+          _GlyphNoteEntry(
+            glyph: annotation.glyph,
+            note: annotation.note,
+            onChanged: _onChanged,
+          ),
+        );
+      }
+    } else {
+      _syncGlyphEntries(lineController.text);
     }
-    _annotations = updated;
+  }
+
+  final VoidCallback _onChanged;
+  late final TextEditingController lineController;
+  late final VoidCallback _lineListener;
+  final List<_GlyphNoteEntry> glyphEntries = [];
+
+  void _syncGlyphEntries(String text) {
+    final characters = text.characters.toList();
+    while (glyphEntries.length > characters.length) {
+      glyphEntries.removeLast().dispose();
+    }
+    for (var i = 0; i < characters.length; i++) {
+      final glyph = characters[i];
+      if (i < glyphEntries.length) {
+        glyphEntries[i].updateGlyph(glyph);
+      } else {
+        glyphEntries.add(
+          _GlyphNoteEntry(
+            glyph: glyph,
+            onChanged: _onChanged,
+          ),
+        );
+      }
+    }
+  }
+
+  List<GlyphAnnotation> buildAnnotations() {
+    return glyphEntries.map((entry) => entry.toAnnotation()).toList();
   }
 
   void dispose() {
-    controller.removeListener(_listener);
-    controller.dispose();
+    lineController.removeListener(_lineListener);
+    lineController.dispose();
+    for (final entry in glyphEntries) {
+      entry.dispose();
+    }
+  }
+}
+
+class _GlyphNoteEntry {
+  _GlyphNoteEntry({
+    required this.glyph,
+    String? note,
+    required VoidCallback onChanged,
+  })  : _onChanged = onChanged,
+        noteController = TextEditingController(text: note ?? '') {
+    noteController.addListener(_onChanged);
+  }
+
+  String glyph;
+  final VoidCallback _onChanged;
+  final TextEditingController noteController;
+
+  bool get isWhitespace => glyph.trim().isEmpty;
+
+  void updateGlyph(String value) {
+    if (glyph == value) {
+      return;
+    }
+    glyph = value;
+    if (noteController.text.isNotEmpty) {
+      noteController.text = '';
+    }
+  }
+
+  GlyphAnnotation toAnnotation() {
+    final noteText = noteController.text.trim();
+    return GlyphAnnotation(
+      glyph: glyph,
+      note: noteText.isEmpty ? null : noteText,
+    );
+  }
+
+  void dispose() {
+    noteController.removeListener(_onChanged);
+    noteController.dispose();
   }
 }

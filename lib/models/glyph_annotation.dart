@@ -5,27 +5,18 @@ part 'glyph_annotation.g.dart';
 @JsonSerializable()
 class GlyphAnnotation {
   const GlyphAnnotation({
-    required this.base,
+    required this.glyph,
     this.note,
   });
 
   factory GlyphAnnotation.fromJson(Map<String, dynamic> json) =>
       _$GlyphAnnotationFromJson(json);
 
-  final String base;
+  final String glyph;
   final String? note;
 
-  GlyphAnnotation copyWith({
-    String? base,
-    Object? note = _undefined,
-  }) {
-    return GlyphAnnotation(
-      base: base ?? this.base,
-      note: note == _undefined ? this.note : note as String?,
-    );
-  }
+  bool get hasNote => note != null && note!.trim().isNotEmpty;
+  bool get isWhitespace => glyph.trim().isEmpty;
 
   Map<String, dynamic> toJson() => _$GlyphAnnotationToJson(this);
-
-  static const _undefined = Object();
 }

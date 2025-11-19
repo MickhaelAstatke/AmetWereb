@@ -1,11 +1,16 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
 part of 'lyric_line.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
 
 LyricLine _$LyricLineFromJson(Map<String, dynamic> json) => LyricLine(
       order: json['order'] as int,
       text: json['text'] as String,
       annotations: (json['annotations'] as List<dynamic>?)
-              ?.map((dynamic e) =>
-                  GlyphAnnotation.fromJson(e as Map<String, dynamic>))
+              ?.map((e) => GlyphAnnotation.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
     );

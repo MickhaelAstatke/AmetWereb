@@ -18,6 +18,28 @@ class LyricLine {
 
   final int order;
   final String text;
+  @JsonKey(defaultValue: <GlyphAnnotation>[])
+  final List<GlyphAnnotation> annotations;
+
+  List<GlyphAnnotation> get glyphs {
+    if (annotations.isNotEmpty) {
+      return annotations;
+    }
+    return text.characters
+        .map((character) => GlyphAnnotation(glyph: character))
+        .toList(growable: false);
+  }
+
+  String get displayText {
+    if (annotations.isEmpty) {
+      return text;
+    }
+    final buffer = StringBuffer();
+    for (final annotation in annotations) {
+      buffer.write(annotation.glyph);
+    }
+    return buffer.toString();
+  }
 
   @JsonKey(defaultValue: [])
   final List<GlyphAnnotation> annotations;
