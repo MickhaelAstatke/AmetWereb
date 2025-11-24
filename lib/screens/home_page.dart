@@ -422,7 +422,7 @@ class HomePage extends HookWidget {
                         ],
                       ),
                     ),
-                    if (monthPages.length > 1)
+                    if (monthPages.length > 1) ...[
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Row(

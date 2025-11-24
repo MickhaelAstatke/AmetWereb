@@ -150,5 +150,46 @@ void main() {
         24,
       );
     });
+
+    testWidgets('page chips allow selecting another page directly',
+        (tester) async {
+      final provider = LyricsProvider(
+        repository: LyricsRepository(),
+        audioPlayer: AudioPlayer(),
+      );
+      addTearDown(() async {
+        await provider.audioPlayer.dispose();
+        provider.dispose();
+      });
+
+      provider.replacePagesForTest([
+        buildPage(
+          id: 'meskerem-first',
+          title: 'Meskerem First',
+          month: 'Meskerem',
+        ),
+        buildPage(
+          id: 'meskerem-second',
+          title: 'Meskerem Second',
+          month: 'Meskerem',
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<LyricsProvider>.value(
+          value: provider,
+          child: const MaterialApp(
+            home: HomePage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('page_chip_meskerem-second')));
+      await tester.pumpAndSettle();
+
+      expect(provider.selectedPage?.id, 'meskerem-second');
+      expect(find.text('Meskerem Second Section'), findsOneWidget);
+    });
   });
 }
