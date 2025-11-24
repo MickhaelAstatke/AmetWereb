@@ -54,7 +54,9 @@ class LyricAnnotationsLine extends StatelessWidget {
               SizedBox(height: notePlaceholderHeight),
             Text(
               annotation.glyph,
-              style: baseStyle,
+              style: annotation.isEmphasized
+                  ? baseStyle.copyWith(color: Colors.red)
+                  : baseStyle,
             ),
           ],
         );
