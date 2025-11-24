@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
@@ -10,7 +12,23 @@ import '../widgets/lyric_annotations_line.dart';
 import '../widgets/now_playing_bar.dart';
 import 'editor_page.dart';
 import 'player_page.dart';
-import 'presentation_page.dart';
+
+const Map<String, String> _amharicMonthLabels = {
+  'Meskerem': 'መስከረም',
+  'Tikimt': 'ጥቅምት',
+  'Hidar': 'ህዳር',
+  'Tahisas': 'ታኅሣሥ',
+  'Tir': 'ጥር',
+  'Yekatit': 'የካቲት',
+  'Megabit': 'መጋቢት',
+  'Miyazya': 'ሚያዚያ',
+  'Ginbot': 'ግንቦት',
+  'Sene': 'ሰኔ',
+  'Hamle': 'ሐምሌ',
+  'Nehase': 'ነሐሴ',
+  'Pagume': 'ጳጉሜ',
+  LyricPage.unknownMonth: 'ያልታወቀ',
+};
 
 class HomePage extends HookWidget {
   const HomePage({super.key});
@@ -24,11 +42,26 @@ class HomePage extends HookWidget {
         final canEdit = context.watch<AuthProvider>().canEdit;
         final months = provider.sortedMonths;
         final selectedMonth = provider.selectedMonth;
-        final dropdownValue =
-            months.contains(selectedMonth) ? selectedMonth : null;
-        final monthPages = dropdownValue == null
+        final hasMonths = months.isNotEmpty;
+        final resolvedMonthIndex = !hasMonths
+            ? 0
+            : (() {
+                final initialIndex = months.indexOf(selectedMonth ?? '');
+                if (initialIndex >= 0) {
+                  return initialIndex;
+                }
+                return 0;
+              })();
+        final tabController = useTabController(
+          initialIndex: resolvedMonthIndex,
+          length: hasMonths ? months.length : 1,
+        );
+        final currentMonth = hasMonths
+            ? months[min(tabController.index, months.length - 1)]
+            : null;
+        final monthPages = currentMonth == null
             ? const <LyricPage>[]
-            : provider.pagesForMonth(dropdownValue);
+            : provider.pagesForMonth(currentMonth);
         final selectedPage = provider.selectedPage;
         final activeIndex = selectedPage == null
             ? -1
@@ -36,7 +69,54 @@ class HomePage extends HookWidget {
         final pageController = usePageController();
 
         useEffect(() {
-          if (selectedPage == null || dropdownValue == null) {
+          if (!hasMonths) {
+            return null;
+          }
+          if (selectedMonth == null || !months.contains(selectedMonth)) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (months.isNotEmpty) {
+                provider.selectMonth(months.first);
+              }
+            });
+          }
+          return null;
+        }, [hasMonths, months, selectedMonth, provider]);
+
+        useEffect(() {
+          if (!hasMonths) {
+            return null;
+          }
+          void handleTabChange() {
+            if (tabController.indexIsChanging) {
+              return;
+            }
+            final nextMonth = months[tabController.index];
+            if (provider.selectedMonth != nextMonth) {
+              provider.selectMonth(nextMonth);
+            }
+          }
+
+          tabController.addListener(handleTabChange);
+          return () => tabController.removeListener(handleTabChange);
+        }, [tabController, hasMonths, months, provider]);
+
+        useEffect(() {
+          if (!hasMonths) {
+            return null;
+          }
+          final targetIndex = months.indexOf(provider.selectedMonth ?? '');
+          if (targetIndex >= 0 && targetIndex < tabController.length) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (tabController.index != targetIndex) {
+                tabController.animateTo(targetIndex);
+              }
+            });
+          }
+          return null;
+        }, [provider.selectedMonth, months, tabController, hasMonths]);
+
+        useEffect(() {
+          if (selectedPage == null || currentMonth == null) {
             return null;
           }
           final targetIndex =
@@ -60,7 +140,7 @@ class HomePage extends HookWidget {
             WidgetsBinding.instance.addPostFrameCallback((_) => jump());
           }
           return null;
-        }, [selectedPage?.id, dropdownValue, monthPages.length]);
+        }, [selectedPage?.id, currentMonth, monthPages.length]);
 
         return Scaffold(
           appBar: AppBar(
@@ -184,7 +264,7 @@ class HomePage extends HookWidget {
                   children: [
                     Container(
                       margin: const EdgeInsets.all(16),
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
@@ -206,89 +286,143 @@ class HomePage extends HookWidget {
                           ),
                         ],
                       ),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .surface
+                                      .withOpacity(0.9),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Icon(
+                                  Icons.library_music,
+                                  color: Theme.of(context).colorScheme.primary,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'የበዓላት ምድቦች',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelMedium
+                                          ?.copyWith(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onPrimaryContainer
+                                                .withOpacity(0.7),
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: 1.2,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Select an Ethiopian month to browse pages',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onPrimaryContainer
+                                                .withOpacity(0.7),
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
                           Container(
-                            padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: Theme.of(context)
                                   .colorScheme
                                   .surface
                                   .withOpacity(0.9),
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(18),
                             ),
-                            child: Icon(
-                              Icons.library_music,
-                              color: Theme.of(context).colorScheme.primary,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Select Page',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .labelMedium
-                                      ?.copyWith(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onPrimaryContainer
-                                            .withOpacity(0.7),
-                                        fontWeight: FontWeight.w600,
-                                        letterSpacing: 1.2,
-                                      ),
+                            child: TabBar(
+                              controller: tabController,
+                              isScrollable: true,
+                              indicator: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Theme.of(context).colorScheme.primary,
+                                    Theme.of(context).colorScheme.secondary,
+                                  ],
                                 ),
-                                const SizedBox(height: 8),
-                                DropdownButtonFormField<String>(
-                                  value: dropdownValue,
-                                  decoration: InputDecoration(
-                                    filled: true,
-                                    fillColor: Theme.of(context)
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Theme.of(context)
                                         .colorScheme
-                                        .surface
-                                        .withOpacity(0.9),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 12,
-                                    ),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                      borderSide: BorderSide.none,
-                                    ),
+                                        .primary
+                                        .withOpacity(0.18),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 6),
                                   ),
-                                  dropdownColor: Theme.of(context).colorScheme.surface,
-                                  items: months
+                                ],
+                              ),
+                              labelColor:
+                                  Theme.of(context).colorScheme.onPrimary,
+                              unselectedLabelColor: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.7),
+                              labelPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              tabs: hasMonths
+                                  ? months
                                       .map(
-                                        (month) => DropdownMenuItem(
-                                          value: month,
-                                          child: Text(
-                                            month,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleMedium,
+                                        (month) => Tab(
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                _amharicMonthLabels[month] ??
+                                                    month,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .titleMedium
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                    ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                month,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .labelSmall,
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       )
-                                      .toList(),
-                                  onChanged: months.isEmpty
-                                      ? null
-                                      : (value) {
-                                          if (value != null) {
-                                            provider.selectMonth(value);
-                                          }
-                                        },
-                                ),
-                              ],
+                                      .toList()
+                                  : const [Tab(text: '—')],
                             ),
                           ),
                         ],
                       ),
                     ),
-                    if (monthPages.length > 1)
+                    if (monthPages.length > 1) ...[
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Row(
@@ -317,8 +451,59 @@ class HomePage extends HookWidget {
                           ],
                         ),
                       ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              for (var i = 0; i < monthPages.length; i++)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 6),
+                                  child: ChoiceChip(
+                                    key: ValueKey('page_chip_${monthPages[i].id}'),
+                                    label: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'ገጽ ${i + 1}',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelSmall,
+                                        ),
+                                        Text(
+                                          monthPages[i].title,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                    selected: provider.selectedPage?.id ==
+                                        monthPages[i].id,
+                                    onSelected: (_) {
+                                      provider.selectPage(monthPages[i]);
+                                      if (pageController.hasClients) {
+                                        pageController.animateToPage(
+                                          i,
+                                          duration:
+                                              const Duration(milliseconds: 250),
+                                          curve: Curves.easeInOut,
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                     Expanded(
-                      child: dropdownValue == null
+                      child: currentMonth == null
                           ? Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -358,7 +543,7 @@ class HomePage extends HookWidget {
                               ),
                             )
                           : monthPages.isEmpty
-                              ? _EmptyMonthState(month: dropdownValue)
+                              ? _EmptyMonthState(month: currentMonth)
                               : PageView.builder(
                                   controller: pageController,
                                   onPageChanged: (index) {
@@ -466,221 +651,252 @@ class _LyricSectionTile extends HookWidget {
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(24),
-            child: Ink(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                gradient: isActive
-                    ? LinearGradient(
-                        colors: [
-                          theme.colorScheme.primary,
-                          theme.colorScheme.secondary,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : null,
-                color: isActive
-                    ? null
-                    : theme.colorScheme.surfaceVariant.withOpacity(0.3),
-                border: isActive
-                    ? null
-                    : Border.all(
-                        color: theme.colorScheme.outlineVariant.withOpacity(0.2),
-                        width: 1.5,
-                      ),
-                boxShadow: [
-                  if (isActive)
-                    BoxShadow(
-                      color: theme.colorScheme.primary.withOpacity(0.3),
-                      blurRadius: 24,
-                      offset: const Offset(0, 8),
-                    ),
-                ],
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  width: 6,
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.outlineVariant.withOpacity(0.25),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: isActive
-                                ? Colors.white.withOpacity(0.2)
-                                : theme.colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Icon(
-                            Icons.music_note_rounded,
-                            color: isActive
-                                ? Colors.white
-                                : theme.colorScheme.onPrimaryContainer,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                section.title,
-                                style: theme.textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: isActive
-                                      ? Colors.white
-                                      : theme.colorScheme.onSurface,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.timer_outlined,
-                                    size: 16,
-                                    color: isActive
-                                        ? Colors.white.withOpacity(0.8)
-                                        : theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '${section.audio.duration ~/ 60}:${(section.audio.duration % 60).toString().padLeft(2, '0')} mins',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: isActive
-                                          ? Colors.white.withOpacity(0.8)
-                                          : theme.colorScheme.onSurfaceVariant,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: 10),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(24),
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      gradient: isActive
+                          ? LinearGradient(
+                              colors: [
+                                theme.colorScheme.primary,
+                                theme.colorScheme.secondary,
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : null,
+                      color: isActive
+                          ? null
+                          : theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                      border: isActive
+                          ? null
+                          : Border.all(
+                              color: theme.colorScheme.outlineVariant
+                                  .withOpacity(0.2),
+                              width: 1.5,
+                            ),
+                      boxShadow: [
                         if (isActive)
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.play_arrow,
-                              color: Colors.white,
-                              size: 20,
-                            ),
+                          BoxShadow(
+                            color: theme.colorScheme.primary.withOpacity(0.3),
+                            blurRadius: 24,
+                            offset: const Offset(0, 8),
                           ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: isActive
-                            ? Colors.white.withOpacity(0.1)
-                            : theme.colorScheme.surface.withOpacity(0.5),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            section.note,
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              color: isActive
-                                  ? Colors.white.withOpacity(0.9)
-                                  : theme.colorScheme.onSurface,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          if (section.lyrics.isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            Divider(
-                              color: isActive
-                                  ? Colors.white.withOpacity(0.2)
-                                  : theme.colorScheme.outlineVariant
-                                      .withOpacity(0.3),
-                            ),
-                            const SizedBox(height: 12),
-                            ...section.lyrics.take(3).map(
-                                  (line) => Padding(
-                                    padding:
-                                        const EdgeInsets.symmetric(vertical: 6),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: isActive
+                                      ? Colors.white.withOpacity(0.2)
+                                      : theme.colorScheme.primaryContainer,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Icon(
+                                  Icons.music_note_rounded,
+                                  color: isActive
+                                      ? Colors.white
+                                      : theme.colorScheme.onPrimaryContainer,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      section.title,
+                                      style: theme.textTheme.titleLarge?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: isActive
+                                            ? Colors.white
+                                            : theme.colorScheme.onSurface,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
                                       children: [
+                                        Icon(
+                                          Icons.timer_outlined,
+                                          size: 16,
+                                          color: isActive
+                                              ? Colors.white.withOpacity(0.8)
+                                              : theme.colorScheme.onSurfaceVariant,
+                                        ),
+                                        const SizedBox(width: 4),
                                         Text(
-                                          'Line ${line.order.toString().padLeft(2, '0')}',
-                                          style: theme.textTheme.labelSmall?.copyWith(
+                                          '${section.audio.duration ~/ 60}:${(section.audio.duration % 60).toString().padLeft(2, '0')}',
+                                          style: theme.textTheme.bodyMedium?.copyWith(
                                             color: isActive
                                                 ? Colors.white.withOpacity(0.8)
-                                                : theme.colorScheme
-                                                    .onSurfaceVariant,
-                                            letterSpacing: 0.8,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: LyricAnnotationsLine(
-                                            line: line,
-                                            baseStyle:
-                                                theme.textTheme.bodyMedium?.copyWith(
-                                                      color: isActive
-                                                          ? Colors
-                                                              .white
-                                                              .withOpacity(0.85)
-                                                          : theme.colorScheme
-                                                              .onSurface
-                                                              .withOpacity(0.8),
-                                                      height: 1.5,
-                                                    ) ??
-                                                    const TextStyle(),
-                                            noteStyle: theme
-                                                .textTheme.labelSmall
-                                                ?.copyWith(
-                                              color: isActive
-                                                  ? Colors.white
-                                                      .withOpacity(0.75)
-                                                  : theme.colorScheme
-                                                      .onSurfaceVariant,
-                                            ),
-                                            glyphSpacing: 10,
+                                                : theme.colorScheme.onSurfaceVariant,
+                                            fontWeight: FontWeight.w500,
                                           ),
                                         ),
                                       ],
                                     ),
-                                  ),
-                                ),
-                            if (section.lyrics.length > 3)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text(
-                                  '+${section.lyrics.length - 3} more lines',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: isActive
-                                        ? Colors.white.withOpacity(0.6)
-                                        : theme.colorScheme.onSurfaceVariant,
-                                    fontStyle: FontStyle.italic,
-                                  ),
+                                  ],
                                 ),
                               ),
-                          ],
+                              if (isActive)
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.play_arrow,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: isActive
+                                  ? Colors.white.withOpacity(0.1)
+                                  : theme.colorScheme.surface.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  section.note,
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    color: isActive
+                                        ? Colors.white.withOpacity(0.9)
+                                        : theme.colorScheme.onSurface,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                if (section.lyrics.isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  Divider(
+                                    color: isActive
+                                        ? Colors.white.withOpacity(0.2)
+                                        : theme.colorScheme.outlineVariant
+                                            .withOpacity(0.3),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  ...section.lyrics.take(3).map(
+                                        (line) => Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 6),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Line ${line.order.toString().padLeft(2, '0')}',
+                                                style: theme
+                                                    .textTheme.labelSmall
+                                                    ?.copyWith(
+                                                  color: isActive
+                                                      ? Colors.white
+                                                          .withOpacity(0.8)
+                                                      : theme.colorScheme
+                                                          .onSurfaceVariant,
+                                                  letterSpacing: 0.8,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: LyricAnnotationsLine(
+                                                  line: line,
+                                                  baseStyle: theme
+                                                          .textTheme.bodyMedium
+                                                          ?.copyWith(
+                                                        color: isActive
+                                                            ? Colors.white
+                                                                .withOpacity(
+                                                                    0.85)
+                                                            : theme.colorScheme
+                                                                .onSurface
+                                                                .withOpacity(
+                                                                    0.8),
+                                                        height: 1.5,
+                                                      ) ??
+                                                      const TextStyle(),
+                                                  noteStyle: theme
+                                                      .textTheme.labelSmall
+                                                      ?.copyWith(
+                                                    color: isActive
+                                                        ? Colors.white
+                                                            .withOpacity(0.75)
+                                                        : theme.colorScheme
+                                                            .onSurfaceVariant,
+                                                  ),
+                                                  glyphSpacing: 10,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                  if (section.lyrics.length > 3)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: Text(
+                                        '+${section.lyrics.length - 3} more lines',
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
+                                          color: isActive
+                                              ? Colors.white.withOpacity(0.6)
+                                              : theme.colorScheme
+                                                  .onSurfaceVariant,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
