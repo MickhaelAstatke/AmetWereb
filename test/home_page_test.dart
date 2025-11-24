@@ -83,9 +83,7 @@ void main() {
       expect(provider.selectedMonth, 'Meskerem');
       expect(find.text('Meskerem Holiday Section'), findsOneWidget);
 
-      await tester.tap(find.byType(DropdownButtonFormField<String>));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Tikimt').last);
+      await tester.tap(find.text('Tikimt').first);
       await tester.pumpAndSettle();
 
       expect(provider.selectedMonth, 'Tikimt');
