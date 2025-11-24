@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/audio_metadata.dart';
 import '../models/lyric_page.dart';
 import '../models/lyric_section.dart';
+import '../services/cloud_sync_service.dart';
 import '../services/lyrics_repository.dart';
 import '../view_models/presentation_view_models.dart';
 
@@ -32,6 +33,7 @@ class LyricsProvider extends ChangeNotifier {
   String? _selectedMonth;
   LyricSection? _currentSection;
   Duration _currentPosition = Duration.zero;
+  double _playbackRate = 1.0;
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<PlayerState>? _stateSub;
 
@@ -50,6 +52,7 @@ class LyricsProvider extends ChangeNotifier {
   AudioPlayer get audioPlayer => _audioPlayer;
   Duration get currentPosition => _currentPosition;
   PlayerState get playerState => _audioPlayer.state;
+  double get playbackRate => _playbackRate;
 
   List<String> get sortedMonths {
     final monthSet = <String>{};
@@ -100,25 +103,8 @@ class LyricsProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      List<LyricPage>? cachedPages;
-      var shouldRewriteCache = false;
-      try {
-        final file = await _storageFile();
-        if (await file.exists()) {
-          final raw = await file.readAsString();
-          final missingAnnotationsField = !raw.contains('"annotations"');
-          final Map<String, dynamic> jsonMap =
-              json.decode(raw) as Map<String, dynamic>;
-          _pages = (jsonMap['pages'] as List<dynamic>)
-              .map((dynamic e) =>
-                  LyricPage.fromJson(e as Map<String, dynamic>))
-              .toList();
-          await _performMonthMigrationIfNeeded();
-          cachedPages = List<LyricPage>.from(_pages);
-          shouldRewriteCache = missingAnnotationsField;
-        }
-      }
-      if (!loaded && _canPersistLocally) {
+      var loaded = false;
+      if (_canPersistLocally) {
         try {
           final file = await _storageFile();
           if (await file.exists()) {
@@ -400,6 +386,15 @@ class LyricsProvider extends ChangeNotifier {
     }
     await _audioPlayer.seek(target);
     _currentPosition = target;
+    notifyListeners();
+  }
+
+  Future<void> setPlaybackRate(double rate) async {
+    if (rate < 0.5 || rate > 2.0) {
+      return;
+    }
+    _playbackRate = rate;
+    await _audioPlayer.setPlaybackRate(rate);
     notifyListeners();
   }
 

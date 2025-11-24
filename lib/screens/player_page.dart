@@ -474,6 +474,63 @@ class _PlaybackControls extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 16),
+              // Playback speed control
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Speed:',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.remove),
+                          iconSize: 20,
+                          onPressed: () {
+                            final newRate = (provider.playbackRate - 0.25).clamp(0.5, 2.0);
+                            provider.setPlaybackRate(newRate);
+                          },
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          child: Text(
+                            '${provider.playbackRate.toStringAsFixed(2)}x',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add),
+                          iconSize: 20,
+                          onPressed: () {
+                            final newRate = (provider.playbackRate + 0.25).clamp(0.5, 2.0);
+                            provider.setPlaybackRate(newRate);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         );

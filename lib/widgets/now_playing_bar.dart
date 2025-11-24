@@ -213,6 +213,57 @@ class NowPlayingBar extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(width: 12),
+                              // Playback speed button
+                              PopupMenuButton<double>(
+                                icon: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.surface
+                                        .withOpacity(0.5),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Text(
+                                    '${provider.playbackRate.toStringAsFixed(1)}x',
+                                    style: theme.textTheme.labelLarge?.copyWith(
+                                      color: theme.colorScheme.onPrimaryContainer,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 0.5,
+                                    child: Text('0.5x'),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 0.75,
+                                    child: Text('0.75x'),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 1.0,
+                                    child: Text('1.0x'),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 1.25,
+                                    child: Text('1.25x'),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 1.5,
+                                    child: Text('1.5x'),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 2.0,
+                                    child: Text('2.0x'),
+                                  ),
+                                ],
+                                onSelected: (rate) {
+                                  provider.setPlaybackRate(rate);
+                                },
+                              ),
+                              const SizedBox(width: 12),
                               // Play/Pause button
                               Container(
                                 width: 48,

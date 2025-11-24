@@ -10,10 +10,12 @@ GlyphAnnotation _$GlyphAnnotationFromJson(Map<String, dynamic> json) =>
     GlyphAnnotation(
       glyph: json['glyph'] as String,
       note: json['note'] as String?,
+      emphasis: json['emphasis'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$GlyphAnnotationToJson(GlyphAnnotation instance) =>
     <String, dynamic>{
       'glyph': instance.glyph,
       'note': instance.note,
+      'emphasis': instance.emphasis,
     };
