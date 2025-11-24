@@ -40,7 +40,7 @@ class LyricsApp extends StatelessWidget {
           PlayerPage.routeName: (_) => const PlayerPage(),
           EditorPage.routeName: (_) => const EditorPage(),
         },
-        initialRoute: PresentationPage.routeName,
+        initialRoute: HomePage.routeName,
       ),
     );
   }
