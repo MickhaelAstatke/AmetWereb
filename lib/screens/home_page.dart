@@ -450,58 +450,7 @@ class HomePage extends HookWidget {
                               ),
                           ],
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              for (var i = 0; i < monthPages.length; i++)
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(horizontal: 6),
-                                  child: ChoiceChip(
-                                    key: ValueKey('page_chip_${monthPages[i].id}'),
-                                    label: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'ገጽ ${i + 1}',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .labelSmall,
-                                        ),
-                                        Text(
-                                          monthPages[i].title,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                    selected: provider.selectedPage?.id ==
-                                        monthPages[i].id,
-                                    onSelected: (_) {
-                                      provider.selectPage(monthPages[i]);
-                                      if (pageController.hasClients) {
-                                        pageController.animateToPage(
-                                          i,
-                                          duration:
-                                              const Duration(milliseconds: 250),
-                                          curve: Curves.easeInOut,
-                                        );
-                                      }
-                                    },
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                     Expanded(
                       child: currentMonth == null
                           ? Center(
