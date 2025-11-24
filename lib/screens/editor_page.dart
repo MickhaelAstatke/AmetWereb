@@ -4,7 +4,6 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:characters/characters.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../models/glyph_annotation.dart';
@@ -63,7 +62,6 @@ class _EditorPageState extends State<EditorPage> {
     }
     setState(() {
       _pickedFilePath = filePath;
-      _initialStoredAudioPath = null;
       _pickedFileDuration = null;
       _audioUrlController.clear();
       _audioValidationError = null;
@@ -74,7 +72,6 @@ class _EditorPageState extends State<EditorPage> {
   void _clearPickedFile() {
     setState(() {
       _pickedFilePath = null;
-      _initialStoredAudioPath = null;
       _pickedFileDuration = null;
       _isLoadingDuration = false;
       _audioValidationError = null;
@@ -172,48 +169,6 @@ class _EditorPageState extends State<EditorPage> {
       return uri.pathSegments.last;
     }
     return path;
-  }
-
-  String _sanitizeFileName(String value) {
-    return value.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
-  }
-
-  Future<String?> _persistSelectedFile() async {
-    final selectedPath = _pickedFilePath;
-    if (selectedPath == null) {
-      return null;
-    }
-    try {
-      final file = File(selectedPath);
-      if (_initialStoredAudioPath != null &&
-          _initialStoredAudioPath == selectedPath &&
-          await file.exists()) {
-        return selectedPath;
-      }
-      if (!await file.exists()) {
-        return null;
-      }
-      final docsDir = await getApplicationDocumentsDirectory();
-      final audioDir =
-          Directory('${docsDir.path}${Platform.pathSeparator}audio');
-      if (!await audioDir.exists()) {
-        await audioDir.create(recursive: true);
-      }
-      final sectionId = _idController.text.trim().isEmpty
-          ? 'section'
-          : _idController.text.trim();
-      final fileName = _sanitizeFileName(
-        '${widget.pageId}_$sectionId_${DateTime.now().millisecondsSinceEpoch}_${_fileNameFromPath(selectedPath)}',
-      );
-      final destinationPath =
-          '${audioDir.path}${Platform.pathSeparator}$fileName';
-      final copiedFile = await file.copy(destinationPath);
-      _initialStoredAudioPath = copiedFile.path;
-      _pickedFilePath = copiedFile.path;
-      return copiedFile.path;
-    } catch (_) {
-      return null;
-    }
   }
 
   @override
@@ -1076,7 +1031,6 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
   late final AudioPlayer _previewPlayer;
 
   String? _pickedFilePath;
-  String? _initialStoredAudioPath;
   Duration? _pickedFileDuration;
   bool _isLoadingDuration = false;
   bool _isSaving = false;
@@ -1101,9 +1055,11 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
     );
     _initializeLyricForms();
     _pickedFilePath = localPath;
-    _initialStoredAudioPath = localPath;
     if (localPath != null) {
-      _pickedFileDuration = Duration(seconds: widget.section!.audio.duration);
+      final initialDuration = widget.section?.audio.duration;
+      if (initialDuration != null) {
+        _pickedFileDuration = Duration(seconds: initialDuration);
+      }
       _loadDurationFromFile(localPath);
     }
   }
@@ -1693,24 +1649,53 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
       _isSaving = true;
     });
 
-    var audioReference = _audioUrlController.text.trim();
+    AudioMetadata? audioMetadata;
+    final provider = context.read<LyricsProvider>();
     if (_pickedFilePath != null) {
-      final storedPath = await _persistSelectedFile();
-      if (storedPath == null) {
+      try {
+        audioMetadata = await provider.uploadSectionAudio(
+          File(_pickedFilePath!),
+          pageId: widget.pageId,
+          sectionId: _idController.text.trim(),
+        );
+        if (mounted) {
+          _durationController.text =
+              audioMetadata.duration.toString();
+        }
+      } catch (error) {
         if (!mounted) {
           return;
         }
         setState(() {
-          _audioValidationError =
-              'Unable to store the selected audio. Please try again.';
+          _audioValidationError = 'Failed to upload audio: $error';
           _isSaving = false;
         });
         return;
       }
-      audioReference = storedPath;
+    } else {
+      final audioReference = _audioUrlController.text.trim();
+      if (audioReference.isEmpty) {
+        setState(() {
+          _audioValidationError =
+              'Select a local audio file or provide an asset/URL reference.';
+          _isSaving = false;
+        });
+        return;
+      }
+      final durationValue = int.tryParse(_durationController.text.trim());
+      if (durationValue == null || durationValue <= 0) {
+        setState(() {
+          _audioValidationError = 'Enter a valid duration in seconds.';
+          _isSaving = false;
+        });
+        return;
+      }
+      audioMetadata = AudioMetadata(
+        url: audioReference,
+        duration: durationValue,
+      );
     }
 
-    final duration = int.parse(_durationController.text.trim());
     final lyricLines = <LyricLine>[];
     for (final form in _lineForms) {
       final rawText = form.lineController.text;
@@ -1737,10 +1722,7 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
       id: _idController.text.trim(),
       title: _titleController.text.trim(),
       note: _noteController.text.trim(),
-      audio: AudioMetadata(
-        url: audioReference,
-        duration: duration,
-      ),
+      audio: audioMetadata!,
       lyrics: lyricLines,
     );
     if (!mounted) {
@@ -1751,6 +1733,7 @@ class _SectionEditorDialogState extends State<SectionEditorDialog> {
     });
     Navigator.of(context).pop(section);
   }
+
 }
 
 class _LyricLineForm {

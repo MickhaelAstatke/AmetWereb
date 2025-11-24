@@ -45,12 +45,15 @@ app/
 - **Home browsing:** filter lyric pages from the seed JSON, preview sections, and trigger playback with highlighted cards.
 - **Now playing bar & full-screen player:** powered by [`audioplayers`](https://pub.dev/packages/audioplayers) for play/pause, seeking, and progress display.
 - **Content editing:** touch-friendly form flow to add, update, or remove pages, sections, and lyric lines with validation.
-- **Offline persistence:** changes are serialized to a sandboxed JSON file using `path_provider` so they survive app restarts.
+- **Remote sync:** the catalog writes through to a shared backend (Supabase/Firebase/custom API) and mirrors edits to all devices.
+- **Offline persistence:** changes are serialized to a sandboxed JSON cache so they survive app restarts and offline sessions.
 - **Platform polish:** Material 3 theming, adaptive launcher icons, gradient splash screens, and safe-area aware layouts on both Android and iOS.
 
 ## Assets & data
 
 Seed content lives in `assets/data/lyrics.json` and is registered via `pubspec.yaml`. The editor writes modifications to the app documents directory (`lyrics.json`), falling back to bundled data on first launch.
+
+For details on the expected REST API, storage bucket, and seeding commands, read [`docs/REMOTE_BACKEND.md`](docs/REMOTE_BACKEND.md).
 
 ## Testing
 
