@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'providers/auth_provider.dart';
 import 'providers/lyrics_provider.dart';
 import 'screens/editor_page.dart';
 import 'screens/home_page.dart';
 import 'screens/player_page.dart';
-import 'services/lyrics_remote_api.dart';
+import 'screens/presentation_page.dart';
 import 'services/lyrics_repository.dart';
 import 'theme/app_theme.dart';
 
@@ -21,11 +22,10 @@ class LyricsApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => LyricsProvider(
-            repository: LyricsRepository(
-              remoteApi: LyricsRemoteApi(),
-            ),
-          )..load(),
+          create: (_) => AuthProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => LyricsProvider(repository: LyricsRepository())..load(),
         ),
       ],
       child: MaterialApp(
@@ -35,11 +35,12 @@ class LyricsApp extends StatelessWidget {
         darkTheme: AppTheme.darkTheme,
         themeMode: ThemeMode.system,
         routes: {
+          PresentationPage.routeName: (_) => const PresentationPage(),
           HomePage.routeName: (_) => const HomePage(),
           PlayerPage.routeName: (_) => const PlayerPage(),
           EditorPage.routeName: (_) => const EditorPage(),
         },
-        initialRoute: HomePage.routeName,
+        initialRoute: PresentationPage.routeName,
       ),
     );
   }

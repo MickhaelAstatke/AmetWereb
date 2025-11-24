@@ -41,5 +41,35 @@ class LyricLine {
     return buffer.toString();
   }
 
+  @JsonKey(defaultValue: [])
+  final List<GlyphAnnotation> annotations;
+
+  bool get hasAnnotations => annotations.isNotEmpty;
+
+  List<GlyphAnnotation> get glyphs {
+    if (annotations.isNotEmpty) {
+      return annotations;
+    }
+    return text.characters
+        .map((character) => GlyphAnnotation(base: character))
+        .toList(growable: false);
+  }
+
+  static const Object _undefined = Object();
+
+  LyricLine copyWith({
+    int? order,
+    String? text,
+    Object? annotations = _undefined,
+  }) {
+    return LyricLine(
+      order: order ?? this.order,
+      text: text ?? this.text,
+      annotations: annotations == _undefined
+          ? this.annotations
+          : List<GlyphAnnotation>.from(annotations as List<GlyphAnnotation>),
+    );
+  }
+
   Map<String, dynamic> toJson() => _$LyricLineToJson(this);
 }

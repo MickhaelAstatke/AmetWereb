@@ -6,12 +6,15 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/glyph_annotation.dart';
 import '../models/audio_metadata.dart';
 import '../models/glyph_annotation.dart';
 import '../models/lyric_line.dart';
 import '../models/lyric_page.dart';
 import '../models/lyric_section.dart';
+import '../providers/auth_provider.dart';
 import '../providers/lyrics_provider.dart';
+import 'home_page.dart';
 
 class EditorPage extends StatefulWidget {
   const EditorPage({super.key});
@@ -33,6 +36,7 @@ class _EditorPageState extends State<EditorPage> {
 
   List<LyricSection> _sections = [];
   bool _isExistingPage = false;
+  bool _authChecked = false;
 
   @override
   void dispose() {
@@ -72,6 +76,24 @@ class _EditorPageState extends State<EditorPage> {
       _isLoadingDuration = false;
       _audioValidationError = null;
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_authChecked) {
+      return;
+    }
+    _authChecked = true;
+    final auth = context.read<AuthProvider>();
+    if (!auth.canEdit) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        Navigator.of(context).pushReplacementNamed(HomePage.routeName);
+      });
+    }
   }
 
   Future<void> _loadDurationFromFile(String path) async {
@@ -151,9 +173,16 @@ class _EditorPageState extends State<EditorPage> {
 
   @override
   Widget build(BuildContext context) {
+    final canEdit = context.watch<AuthProvider>().canEdit;
+    if (!canEdit) {
+      return const SizedBox.shrink();
+    }
     final theme = Theme.of(context);
     return Consumer<LyricsProvider>(
       builder: (context, provider, _) {
+        if (!AppAccess.canEdit) {
+          return const _EditorLockedView();
+        }
         LyricPage? selectedPage;
         if (_isExistingPage) {
           try {
@@ -188,6 +217,26 @@ class _EditorPageState extends State<EditorPage> {
                 const Text('Manage Library'),
               ],
             ),
+            actions: [
+              IconButton(
+                tooltip: 'Preview presentation',
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.present_to_all,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+                onPressed: () => Navigator.of(context).pushNamed(
+                  PresentationPage.routeName,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
           ),
           body: Padding(
             padding: const EdgeInsets.all(16),
@@ -909,6 +958,50 @@ class _EditorPageState extends State<EditorPage> {
         ),
       );
     }
+  }
+}
+
+class _EditorLockedView extends StatelessWidget {
+  const _EditorLockedView();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Manage Library'),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.lock_outline,
+                size: 64,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Editing restricted',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'This build is running in viewer mode. Relaunch the app with '
+                "APP_ROLE=editor to access the management tools.",
+                style: theme.textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

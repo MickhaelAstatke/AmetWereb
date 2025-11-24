@@ -4,21 +4,24 @@ import 'package:provider/provider.dart';
 
 import '../models/lyric_page.dart';
 import '../models/lyric_section.dart';
+import '../providers/auth_provider.dart';
 import '../providers/lyrics_provider.dart';
 import '../widgets/lyric_annotations_line.dart';
 import '../widgets/now_playing_bar.dart';
 import 'editor_page.dart';
 import 'player_page.dart';
+import 'presentation_page.dart';
 
 class HomePage extends HookWidget {
   const HomePage({super.key});
 
-  static const routeName = '/';
+  static const routeName = '/manage';
 
   @override
   Widget build(BuildContext context) {
     return Consumer<LyricsProvider>(
       builder: (context, provider, _) {
+        final canEdit = context.watch<AuthProvider>().canEdit;
         final months = provider.sortedMonths;
         final selectedMonth = provider.selectedMonth;
         final dropdownValue =
@@ -89,18 +92,31 @@ class HomePage extends HookWidget {
                 icon: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primaryContainer
+                        .withOpacity(canEdit ? 1 : 0.4),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     Icons.edit_note,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onPrimaryContainer
+                        .withOpacity(canEdit ? 1 : 0.4),
                   ),
                 ),
-                tooltip: 'Manage pages',
-                onPressed: () => Navigator.of(context).pushNamed(
-                  EditorPage.routeName,
-                ),
+                tooltip:
+                    canEdit ? 'Manage pages' : 'You do not have permission to edit',
+                onPressed: canEdit
+                    ? () {
+                        assert(canEdit,
+                            'An edit role is required before opening the editor.');
+                        Navigator.of(context).pushNamed(
+                          EditorPage.routeName,
+                        );
+                      }
+                    : null,
               ),
               const SizedBox(width: 8),
               IconButton(
@@ -596,33 +612,19 @@ class _LyricSectionTile extends HookWidget {
                             ...section.lyrics.take(3).map(
                                   (line) => Padding(
                                     padding:
-                                        const EdgeInsets.symmetric(vertical: 4),
-                                    child: Row(
+                                        const EdgeInsets.symmetric(vertical: 6),
+                                    child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Container(
-                                          width: 28,
-                                          height: 28,
-                                          alignment: Alignment.center,
-                                          decoration: BoxDecoration(
+                                        Text(
+                                          'Line ${line.order.toString().padLeft(2, '0')}',
+                                          style: theme.textTheme.labelSmall?.copyWith(
                                             color: isActive
-                                                ? Colors.white.withOpacity(0.15)
-                                                : theme.colorScheme.primaryContainer
-                                                    .withOpacity(0.5),
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                          child: Text(
-                                            '${line.order}',
-                                            style: theme.textTheme.labelSmall
-                                                ?.copyWith(
-                                              color: isActive
-                                                  ? Colors.white
-                                                  : theme.colorScheme
-                                                      .onPrimaryContainer,
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                                                ? Colors.white.withOpacity(0.8)
+                                                : theme.colorScheme
+                                                    .onSurfaceVariant,
+                                            letterSpacing: 0.8,
                                           ),
                                         ),
                                         const SizedBox(width: 12),
